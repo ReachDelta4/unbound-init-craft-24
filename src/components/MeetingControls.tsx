@@ -36,8 +36,8 @@ const MeetingControls = ({
   return (
     <div className="flex justify-center items-center gap-4">
       {isCallActive && (
-        <div className="flex items-center gap-2 bg-slate-700 py-1 px-3 rounded-full">
-          <span className="animate-pulse">●</span>
+        <div className="flex items-center gap-2 bg-muted py-1 px-3 rounded-full">
+          <span className="animate-pulse text-green-500">●</span>
           <span className="text-sm font-mono">{formatTime(callDuration)}</span>
         </div>
       )}
@@ -47,10 +47,10 @@ const MeetingControls = ({
         onValueChange={onCallTypeChange}
         disabled={isCallActive}
       >
-        <SelectTrigger className="w-[200px] bg-slate-700 border-slate-600">
+        <SelectTrigger className="w-[200px]">
           <SelectValue placeholder="Select call type" />
         </SelectTrigger>
-        <SelectContent className="bg-slate-700 border-slate-600">
+        <SelectContent>
           <SelectItem value="video" className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <Video size={16} />

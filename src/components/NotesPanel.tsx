@@ -34,19 +34,19 @@ const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
       <Tabs defaultValue="checklist" className="w-full h-full flex flex-col">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium">Notes & Agenda</h2>
-          <TabsList className="bg-slate-700">
-            <TabsTrigger value="checklist" className="data-[state=active]:bg-slate-600">
+          <TabsList>
+            <TabsTrigger value="checklist">
               <CheckSquare size={16} className="mr-1" /> Checklist
             </TabsTrigger>
-            <TabsTrigger value="notes" className="data-[state=active]:bg-slate-600">
+            <TabsTrigger value="notes">
               <Pencil size={16} className="mr-1" /> Notes
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="checklist" className="flex-grow mt-0">
-          <div className="bg-slate-700 rounded-lg p-4 mb-4">
-            <h3 className="text-sm font-medium mb-2 text-slate-300">Call Structure</h3>
+          <div className="bg-muted rounded-lg p-4 mb-4">
+            <h3 className="text-sm font-medium mb-2 text-muted-foreground">Call Structure</h3>
             <div className="space-y-2">
               {checklist.map((item) => (
                 <div key={item.id} className="flex items-start space-x-2">
@@ -58,7 +58,7 @@ const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
                   />
                   <label 
                     htmlFor={`item-${item.id}`}
-                    className={`text-sm ${item.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}
+                    className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}
                   >
                     {item.label}
                   </label>
@@ -67,8 +67,8 @@ const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
             </div>
           </div>
 
-          <div className="bg-slate-700 rounded-lg p-4">
-            <h3 className="text-sm font-medium mb-2 text-slate-300">Key Questions to Ask</h3>
+          <div className="bg-muted rounded-lg p-4">
+            <h3 className="text-sm font-medium mb-2 text-muted-foreground">Key Questions to Ask</h3>
             <ul className="space-y-1 ml-5 list-disc text-sm">
               <li>What are your biggest challenges with your current solution?</li>
               <li>What's your timeline for implementation?</li>
@@ -83,7 +83,7 @@ const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
           <Textarea 
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="h-full bg-slate-700 border-slate-600 resize-none font-mono"
+            className="h-full bg-muted border-input resize-none font-mono"
             placeholder="Take your meeting notes here..."
           />
         </TabsContent>

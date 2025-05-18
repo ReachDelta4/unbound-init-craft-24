@@ -4,6 +4,7 @@ import MeetingControls from "@/components/MeetingControls";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import InsightsPanel from "@/components/InsightsPanel";
 import NotesPanel from "@/components/NotesPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 const Index = () => {
@@ -28,9 +29,15 @@ const Index = () => {
   };
 
   return (
-    <div className="h-screen w-full bg-slate-900 text-slate-100 flex flex-col">
-      <header className="bg-slate-800 p-4 border-b border-slate-700">
-        <h1 className="text-xl font-semibold text-center">Invisible AI Meeting Assistant</h1>
+    <div className="h-screen w-full bg-background text-foreground flex flex-col">
+      <header className="bg-card p-4 border-b border-border flex items-center justify-between">
+        <div className="flex-1">
+          {/* Spacer */}
+        </div>
+        <h1 className="text-xl font-semibold text-center flex-1">Invisible AI Meeting Assistant</h1>
+        <div className="flex-1 flex justify-end">
+          <ThemeToggle />
+        </div>
       </header>
 
       <div className="flex-grow overflow-hidden">
@@ -39,7 +46,7 @@ const Index = () => {
           <ResizablePanel 
             defaultSize={30} 
             minSize={20}
-            className="bg-slate-800 p-4"
+            className="bg-card p-4"
           >
             <TranscriptPanel isCallActive={isCallActive} />
           </ResizablePanel>
@@ -50,7 +57,7 @@ const Index = () => {
           <ResizablePanel 
             defaultSize={40} 
             minSize={30}
-            className="bg-slate-900 p-4"
+            className="bg-background p-4"
           >
             <InsightsPanel isCallActive={isCallActive} />
           </ResizablePanel>
@@ -61,7 +68,7 @@ const Index = () => {
           <ResizablePanel 
             defaultSize={30} 
             minSize={20}
-            className="bg-slate-800 p-4"
+            className="bg-card p-4"
           >
             <NotesPanel isCallActive={isCallActive} />
           </ResizablePanel>
@@ -69,7 +76,7 @@ const Index = () => {
       </div>
 
       {/* Meeting Controls at Bottom */}
-      <div className="bg-slate-800 border-t border-slate-700 p-4">
+      <div className="bg-card border-t border-border p-4">
         <MeetingControls 
           isCallActive={isCallActive}
           callType={callType}

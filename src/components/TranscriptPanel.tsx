@@ -26,7 +26,7 @@ const TranscriptPanel = ({ isCallActive }: TranscriptPanelProps) => {
           <List size={18} /> Transcript
         </h2>
         {isCallActive && (
-          <span className="text-xs bg-green-700/30 text-green-400 px-2 py-1 rounded-full">
+          <span className="text-xs bg-green-700/30 text-green-400 dark:text-green-400 dark:bg-green-700/30 px-2 py-1 rounded-full">
             Live Transcription
           </span>
         )}
@@ -36,14 +36,14 @@ const TranscriptPanel = ({ isCallActive }: TranscriptPanelProps) => {
         {isCallActive ? (
           sampleTranscript.map((item) => (
             <div key={item.id} className="mb-3">
-              <div className={`font-medium mb-1 ${item.speaker === "Client" ? "text-indigo-400" : "text-emerald-400"}`}>
+              <div className={`font-medium mb-1 ${item.speaker === "Client" ? "text-indigo-400 dark:text-indigo-400" : "text-emerald-400 dark:text-emerald-400"}`}>
                 {item.speaker}
               </div>
-              <p className="text-slate-300">{item.text}</p>
+              <p className="text-foreground">{item.text}</p>
             </div>
           ))
         ) : (
-          <div className="h-full flex items-center justify-center text-slate-500">
+          <div className="h-full flex items-center justify-center text-muted-foreground">
             <p>Transcript will appear here when call is active</p>
           </div>
         )}
