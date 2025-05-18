@@ -1,8 +1,7 @@
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pencil, CheckSquare, Plus, Trash2, ArrowDown, ArrowUp } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,10 +25,28 @@ interface NotesPanelProps {
   isCallActive: boolean;
 }
 
+interface MarkdownLine {
+  id: string;
+  rawContent: string;
+  renderedContent: string;
+  isEditing: boolean;
+}
+
 const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
-  const [notes, setNotes] = useState<string>(
-    "# Meeting Notes\n\nKey points:\n- Client interested in our enterprise plan\n- Need to follow up with pricing details\n- Technical integration is a priority\n"
-  );
+  const initialNotes = "# Meeting Notes\n\nKey points:\n- Client interested in our enterprise plan\n- Need to follow up with pricing details\n- Technical integration is a priority\n";
+  
+  // Convert initial notes to markdown lines
+  const createInitialMarkdownLines = () => {
+    return initialNotes.split('\n').map((line, index) => ({
+      id: `line-${index}`,
+      rawContent: line,
+      renderedContent: renderMarkdownLine(line),
+      isEditing: false
+    }));
+  };
+
+  const [markdownLines, setMarkdownLines] = useState<MarkdownLine[]>(createInitialMarkdownLines());
+  const [activeLineId, setActiveLineId] = useState<string | null>(null);
   
   const [checklist, setChecklist] = useState<ChecklistItem[]>([
     { id: 1, label: "Introduction", completed: true, description: "Brief company overview" },
@@ -47,9 +64,8 @@ const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
     { id: 4, text: "What's your budget range for this project?" },
     { id: 5, text: "What would success look like for you in 6 months?" },
   ]);
-
-  // For Markdown preview rendering
-  const [renderedNotes, setRenderedNotes] = useState<string>("");
+  
+  const lineInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
 
   // Toggle checklist item completion
   const toggleChecklistItem = (id: number) => {
@@ -131,45 +147,147 @@ const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
     ));
   };
 
-  // Simple markdown to HTML converter for preview
-  const convertMarkdownToHTML = (markdown: string): string => {
-    let html = markdown
-      // Headers
-      .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
-      .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
-      .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
-      
-      // Bold
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/__(.*?)__/g, '<strong>$1</strong>')
-      
-      // Italic
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/_(.*?)_/g, '<em>$1</em>')
-      
-      // Lists
-      .replace(/^- (.*?)$/gm, '<li>$1</li>')
-      .replace(/^\d+\. (.*?)$/gm, '<li>$1</li>')
-      
-      // Links
-      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
-      
-      // Line breaks
-      .replace(/\n/g, '<br/>');
+  // Convert markdown to HTML for a single line
+  const renderMarkdownLine = (line: string): string => {
+    // Headers
+    if (line.match(/^# (.*?)$/)) {
+      return line.replace(/^# (.*?)$/, '$1');
+    }
+    if (line.match(/^## (.*?)$/)) {
+      return line.replace(/^## (.*?)$/, '$1');
+    }
+    if (line.match(/^### (.*?)$/)) {
+      return line.replace(/^### (.*?)$/, '$1');
+    }
     
-    // Wrap lists in ul/ol tags
-    html = html
-      .replace(/(<li>.*?<\/li>)/g, '<ul>$1</ul>')
-      .replace(/<\/li><br\/><li>/g, '</li><li>')
-      .replace(/<\/ul><br\/><ul>/g, '</ul><ul>');
+    // Bold
+    line = line.replace(/\*\*(.*?)\*\*/g, '$1');
+    line = line.replace(/__(.*?)__/g, '$1');
     
-    return html;
+    // Italic
+    line = line.replace(/\*(.*?)\*/g, '$1');
+    line = line.replace(/_(.*?)_/g, '$1');
+    
+    // Lists
+    if (line.match(/^- (.*?)$/)) {
+      return line.replace(/^- (.*?)$/, '• $1');
+    }
+    
+    // Numbered Lists
+    if (line.match(/^\d+\. (.*?)$/)) {
+      return line.replace(/^\d+\. (.*?)$/, (match, content) => {
+        const number = match.split('.')[0];
+        return `${number}. ${content}`;
+      });
+    }
+    
+    return line;
   };
 
-  // Process notes for rendering when they change
-  useEffect(() => {
-    setRenderedNotes(convertMarkdownToHTML(notes));
-  }, [notes]);
+  // Handle Markdown line editing
+  const startEditingLine = (id: string) => {
+    setMarkdownLines(markdownLines.map(line => 
+      line.id === id ? { ...line, isEditing: true } : line
+    ));
+    setActiveLineId(id);
+    
+    // Focus on the input element after a short delay to ensure it exists in the DOM
+    setTimeout(() => {
+      if (lineInputRefs.current[id]) {
+        lineInputRefs.current[id]?.focus();
+      }
+    }, 10);
+  };
+
+  // Handle line input change
+  const handleLineChange = (id: string, content: string) => {
+    setMarkdownLines(markdownLines.map(line => 
+      line.id === id ? { ...line, rawContent: content } : line
+    ));
+  };
+
+  // Handle finishing edit (on Enter or blur)
+  const finishEditingLine = (id: string) => {
+    const updatedLines = markdownLines.map(line => 
+      line.id === id ? { 
+        ...line, 
+        isEditing: false, 
+        renderedContent: renderMarkdownLine(line.rawContent) 
+      } : line
+    );
+    setMarkdownLines(updatedLines);
+    setActiveLineId(null);
+  };
+
+  // Handle key press in markdown line input
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>, id: string, index: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Create a new line
+      const newId = `line-${Date.now()}`;
+      const newLine: MarkdownLine = {
+        id: newId,
+        rawContent: '',
+        renderedContent: '',
+        isEditing: true
+      };
+      
+      const updatedLines = [...markdownLines];
+      // First finish editing the current line
+      updatedLines[index] = {
+        ...updatedLines[index],
+        isEditing: false,
+        renderedContent: renderMarkdownLine(updatedLines[index].rawContent)
+      };
+      // Then insert the new line
+      updatedLines.splice(index + 1, 0, newLine);
+      
+      setMarkdownLines(updatedLines);
+      setActiveLineId(newId);
+      
+      // Focus on the new line
+      setTimeout(() => {
+        lineInputRefs.current[newId]?.focus();
+      }, 10);
+    } else if (e.key === 'Backspace' && markdownLines[index].rawContent === '' && markdownLines.length > 1) {
+      // Delete empty line on backspace
+      e.preventDefault();
+      const updatedLines = markdownLines.filter(line => line.id !== id);
+      setMarkdownLines(updatedLines);
+      
+      // Focus on previous line
+      if (index > 0) {
+        const prevLineId = updatedLines[index - 1].id;
+        startEditingLine(prevLineId);
+      }
+    } else if (e.key === 'ArrowUp' && index > 0) {
+      // Navigate to the line above
+      e.preventDefault();
+      const prevLineId = markdownLines[index - 1].id;
+      startEditingLine(prevLineId);
+    } else if (e.key === 'ArrowDown' && index < markdownLines.length - 1) {
+      // Navigate to the line below
+      e.preventDefault();
+      const nextLineId = markdownLines[index + 1].id;
+      startEditingLine(nextLineId);
+    }
+  };
+
+  // Get CSS class based on markdown content
+  const getLineClass = (rawContent: string): string => {
+    if (rawContent.match(/^# /)) {
+      return "text-2xl font-bold my-2";
+    } else if (rawContent.match(/^## /)) {
+      return "text-xl font-bold my-1.5";
+    } else if (rawContent.match(/^### /)) {
+      return "text-lg font-bold my-1";
+    } else if (rawContent.match(/^- /)) {
+      return "ml-4";
+    } else if (rawContent.match(/^\d+\. /)) {
+      return "ml-4";
+    }
+    return "my-0.5";
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -314,20 +432,29 @@ const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
           </TabsContent>
 
           <TabsContent value="notes" className="h-full mt-0">
-            <div className="flex flex-col h-full">
-              <Textarea 
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="h-1/2 min-h-40 bg-muted border-input resize-none font-mono mb-4"
-                placeholder="Take your meeting notes here..."
-              />
-              
-              <div className="h-1/2 bg-muted border border-input rounded-md p-4 overflow-auto">
-                <div 
-                  className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: renderedNotes }}
-                />
-              </div>
+            <div className="h-full p-4 bg-muted border border-input rounded-md">
+              {markdownLines.map((line, index) => (
+                <div key={line.id} className={getLineClass(line.rawContent)}>
+                  {line.isEditing || line.id === activeLineId ? (
+                    <Input
+                      ref={(el) => lineInputRefs.current[line.id] = el}
+                      value={line.rawContent}
+                      onChange={(e) => handleLineChange(line.id, e.target.value)}
+                      onBlur={() => finishEditingLine(line.id)}
+                      onKeyDown={(e) => handleKeyDown(e, line.id, index)}
+                      className="bg-transparent border-none h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      autoFocus={line.id === activeLineId}
+                    />
+                  ) : (
+                    <div 
+                      onClick={() => startEditingLine(line.id)}
+                      className="cursor-text min-h-[1.5rem]"
+                    >
+                      {line.renderedContent || ' '}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </TabsContent>
         </ScrollArea>
