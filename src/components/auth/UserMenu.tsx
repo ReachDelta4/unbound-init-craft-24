@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { UserCircle } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export const UserMenu = () => {
   const { user, signOut } = useAuth();
@@ -26,6 +27,9 @@ export const UserMenu = () => {
             <DropdownMenuItem className="text-sm font-medium" disabled>
               {user.email}
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/profile">Profile Settings</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleSignOut}>
               Sign out
             </DropdownMenuItem>
@@ -33,7 +37,7 @@ export const UserMenu = () => {
         </DropdownMenu>
       ) : (
         <Button variant="outline" size="sm" asChild>
-          <a href="/auth">Sign in</a>
+          <Link to="/auth">Sign in</Link>
         </Button>
       )}
     </div>
