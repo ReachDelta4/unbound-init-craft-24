@@ -5,6 +5,7 @@ import TranscriptPanel from "@/components/TranscriptPanel";
 import InsightsPanel from "@/components/InsightsPanel";
 import NotesPanel from "@/components/NotesPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserMenu } from "@/components/auth/UserMenu";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 const Index = () => {
@@ -35,8 +36,9 @@ const Index = () => {
           {/* Spacer */}
         </div>
         <h1 className="text-xl font-semibold text-center flex-1">Invisible AI Meeting Assistant</h1>
-        <div className="flex-1 flex justify-end">
+        <div className="flex-1 flex justify-end items-center gap-2">
           <ThemeToggle />
+          <UserMenu />
         </div>
       </header>
 
