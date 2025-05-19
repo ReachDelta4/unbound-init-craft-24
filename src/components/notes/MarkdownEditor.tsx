@@ -28,39 +28,46 @@ const MarkdownEditor = () => {
 
   // Convert markdown to HTML for a single line
   const renderMarkdownLine = (line: string): string => {
+    let renderedLine = line;
+    
     // Headers
-    if (line.match(/^# (.*?)$/)) {
-      return line.replace(/^# (.*?)$/, '$1');
+    if (renderedLine.match(/^# (.*?)$/)) {
+      renderedLine = renderedLine.replace(/^# (.*?)$/, '$1');
+      return renderedLine;
     }
-    if (line.match(/^## (.*?)$/)) {
-      return line.replace(/^## (.*?)$/, '$1');
+    if (renderedLine.match(/^## (.*?)$/)) {
+      renderedLine = renderedLine.replace(/^## (.*?)$/, '$1');
+      return renderedLine;
     }
-    if (line.match(/^### (.*?)$/)) {
-      return line.replace(/^### (.*?)$/, '$1');
+    if (renderedLine.match(/^### (.*?)$/)) {
+      renderedLine = renderedLine.replace(/^### (.*?)$/, '$1');
+      return renderedLine;
     }
     
     // Bold
-    line = line.replace(/\*\*(.*?)\*\*/g, '$1');
-    line = line.replace(/__(.*?)__/g, '$1');
+    renderedLine = renderedLine.replace(/\*\*(.*?)\*\*/g, '$1');
+    renderedLine = renderedLine.replace(/__(.*?)__/g, '$1');
     
     // Italic
-    line = line.replace(/\*(.*?)\*/g, '$1');
-    line = line.replace(/_(.*?)_/g, '$1');
+    renderedLine = renderedLine.replace(/\*(.*?)\*/g, '$1');
+    renderedLine = renderedLine.replace(/_(.*?)_/g, '$1');
     
     // Lists
-    if (line.match(/^- (.*?)$/)) {
-      return line.replace(/^- (.*?)$/, '• $1');
+    if (renderedLine.match(/^- (.*?)$/)) {
+      renderedLine = renderedLine.replace(/^- (.*?)$/, '• $1');
+      return renderedLine;
     }
     
     // Numbered Lists
-    if (line.match(/^\d+\. (.*?)$/)) {
-      return line.replace(/^\d+\. (.*?)$/, (match, content) => {
+    if (renderedLine.match(/^\d+\. (.*?)$/)) {
+      renderedLine = renderedLine.replace(/^\d+\. (.*?)$/, (match, content) => {
         const number = match.split('.')[0];
         return `${number}. ${content}`;
       });
+      return renderedLine;
     }
     
-    return line;
+    return renderedLine;
   };
 
   // Handle Markdown line editing
@@ -131,7 +138,7 @@ const MarkdownEditor = () => {
     } else if (e.key === 'Backspace' && markdownLines[index].rawContent === '' && markdownLines.length > 1) {
       // Delete empty line on backspace
       e.preventDefault();
-      const updatedLines = markdownLines.filter(line => line.id !== id);
+      const updatedLines = markdownLines.filter((_, i) => i !== index);
       setMarkdownLines(updatedLines);
       
       // Focus on previous line

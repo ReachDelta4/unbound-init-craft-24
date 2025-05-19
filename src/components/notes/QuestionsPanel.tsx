@@ -27,20 +27,20 @@ const QuestionsPanel = () => {
 
   // Delete question
   const deleteQuestion = (id: number) => {
-    setQuestions(questions.filter(q => q.id !== id));
+    setQuestions(questions.filter(question => question.id !== id));
   };
 
   // Edit question
   const startEditingQuestion = (id: number) => {
-    setQuestions(questions.map(q => 
-      q.id === id ? { ...q, isEditing: true } : q
+    setQuestions(questions.map(question => 
+      question.id === id ? { ...question, isEditing: true } : question
     ));
   };
 
   // Save question
   const saveQuestionText = (id: number, text: string) => {
-    setQuestions(questions.map(q => 
-      q.id === id ? { ...q, text, isEditing: false } : q
+    setQuestions(questions.map(question => 
+      question.id === id ? { ...question, text, isEditing: false } : question
     ));
   };
 
