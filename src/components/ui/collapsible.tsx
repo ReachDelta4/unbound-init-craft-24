@@ -18,11 +18,6 @@ const CollapsibleTrigger = React.forwardRef<
     className={cn("flex items-center gap-1", className)}
     {...props}
   >
-    {showIcon && (
-      <div className="flex items-center justify-center">
-        <ChevronRight className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-90" />
-      </div>
-    )}
     {children}
   </CollapsiblePrimitive.CollapsibleTrigger>
 ))

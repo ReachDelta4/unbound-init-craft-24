@@ -53,6 +53,7 @@ export const ChecklistItem: React.FC<ChecklistItemProps> = ({
         >
           <div className="flex items-center gap-1">
             <CollapsibleTrigger asChild>
+              {/* This is a single React element used with asChild */}
               <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                 {item.isOpen ? (
                   <ChevronDown className="h-4 w-4" />
