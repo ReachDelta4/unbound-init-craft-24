@@ -9,6 +9,50 @@ interface MarkdownLine {
   isEditing: boolean;
 }
 
+// Convert markdown to HTML for a single line
+const renderMarkdownLine = (line: string): string => {
+  let renderedLine = line;
+  
+  // Headers
+  if (renderedLine.match(/^# (.*?)$/)) {
+    renderedLine = renderedLine.replace(/^# (.*?)$/, '$1');
+    return renderedLine;
+  }
+  if (renderedLine.match(/^## (.*?)$/)) {
+    renderedLine = renderedLine.replace(/^## (.*?)$/, '$1');
+    return renderedLine;
+  }
+  if (renderedLine.match(/^### (.*?)$/)) {
+    renderedLine = renderedLine.replace(/^### (.*?)$/, '$1');
+    return renderedLine;
+  }
+  
+  // Bold
+  renderedLine = renderedLine.replace(/\*\*(.*?)\*\*/g, '$1');
+  renderedLine = renderedLine.replace(/__(.*?)__/g, '$1');
+  
+  // Italic
+  renderedLine = renderedLine.replace(/\*(.*?)\*/g, '$1');
+  renderedLine = renderedLine.replace(/_(.*?)_/g, '$1');
+  
+  // Lists
+  if (renderedLine.match(/^- (.*?)$/)) {
+    renderedLine = renderedLine.replace(/^- (.*?)$/, '• $1');
+    return renderedLine;
+  }
+  
+  // Numbered Lists
+  if (renderedLine.match(/^\d+\. (.*?)$/)) {
+    renderedLine = renderedLine.replace(/^\d+\. (.*?)$/, (match, content) => {
+      const number = match.split('.')[0];
+      return `${number}. ${content}`;
+    });
+    return renderedLine;
+  }
+  
+  return renderedLine;
+};
+
 const MarkdownEditor = () => {
   const initialNotes = "# Meeting Notes\n\nKey points:\n- Client interested in our enterprise plan\n- Need to follow up with pricing details\n- Technical integration is a priority\n";
   
@@ -25,50 +69,6 @@ const MarkdownEditor = () => {
   const [markdownLines, setMarkdownLines] = useState<MarkdownLine[]>(createInitialMarkdownLines());
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
   const lineInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
-
-  // Convert markdown to HTML for a single line
-  const renderMarkdownLine = (line: string): string => {
-    let renderedLine = line;
-    
-    // Headers
-    if (renderedLine.match(/^# (.*?)$/)) {
-      renderedLine = renderedLine.replace(/^# (.*?)$/, '$1');
-      return renderedLine;
-    }
-    if (renderedLine.match(/^## (.*?)$/)) {
-      renderedLine = renderedLine.replace(/^## (.*?)$/, '$1');
-      return renderedLine;
-    }
-    if (renderedLine.match(/^### (.*?)$/)) {
-      renderedLine = renderedLine.replace(/^### (.*?)$/, '$1');
-      return renderedLine;
-    }
-    
-    // Bold
-    renderedLine = renderedLine.replace(/\*\*(.*?)\*\*/g, '$1');
-    renderedLine = renderedLine.replace(/__(.*?)__/g, '$1');
-    
-    // Italic
-    renderedLine = renderedLine.replace(/\*(.*?)\*/g, '$1');
-    renderedLine = renderedLine.replace(/_(.*?)_/g, '$1');
-    
-    // Lists
-    if (renderedLine.match(/^- (.*?)$/)) {
-      renderedLine = renderedLine.replace(/^- (.*?)$/, '• $1');
-      return renderedLine;
-    }
-    
-    // Numbered Lists
-    if (renderedLine.match(/^\d+\. (.*?)$/)) {
-      renderedLine = renderedLine.replace(/^\d+\. (.*?)$/, (match, content) => {
-        const number = match.split('.')[0];
-        return `${number}. ${content}`;
-      });
-      return renderedLine;
-    }
-    
-    return renderedLine;
-  };
 
   // Handle Markdown line editing
   const startEditingLine = (id: string) => {
