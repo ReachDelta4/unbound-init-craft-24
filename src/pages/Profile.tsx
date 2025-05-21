@@ -8,7 +8,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserCircle, Briefcase, File, Calendar } from "lucide-react";
+import { UserCircle, Briefcase, File, Calendar, ArrowLeft } from "lucide-react";
 import { 
   Sidebar, 
   SidebarContent, 
@@ -24,6 +24,7 @@ import PersonalTab from "@/components/profile/PersonalTab";
 import BusinessTab from "@/components/profile/BusinessTab";
 import DocumentsTab from "@/components/profile/DocumentsTab";
 import MeetingHistoryTab from "@/components/profile/MeetingHistoryTab";
+import { Button } from "@/components/ui/button";
 
 type TabType = "personal" | "business" | "documents" | "meetings";
 
@@ -99,12 +100,12 @@ const Profile = () => {
           </SidebarContent>
           <SidebarFooter>
             <div className="p-2">
-              <button 
+              <Button 
                 onClick={() => navigate("/")}
                 className="w-full px-3 py-2 flex justify-center items-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Back to Dashboard
-              </button>
+              </Button>
             </div>
           </SidebarFooter>
         </Sidebar>
@@ -114,6 +115,10 @@ const Profile = () => {
           <header className="bg-card p-4 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
+              <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="mr-2">
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">Back to Dashboard</span>
+              </Button>
               <h1 className="text-xl font-semibold">
                 {activeTab === "personal" && "Personal Information"}
                 {activeTab === "business" && "Business Details"}
