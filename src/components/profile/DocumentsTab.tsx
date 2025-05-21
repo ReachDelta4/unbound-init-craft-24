@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { User } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,17 +56,19 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ user }) => {
       const files = Array.from(e.target.files);
       
       for (const file of files) {
+        // Simple progress simulation since onUploadProgress is not available
+        setUploadProgress(25);
+        
         // Upload to Storage
         const filePath = `${user.id}/${Date.now()}-${file.name}`;
         const { error: uploadError, data: uploadData } = await supabase.storage
           .from('user_documents')
           .upload(filePath, file, {
             cacheControl: '3600',
-            upsert: false,
-            onUploadProgress: (progress) => {
-              setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
-            },
+            upsert: false
           });
+        
+        setUploadProgress(75);
         
         if (uploadError) throw uploadError;
         
@@ -83,6 +84,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ user }) => {
           });
         
         if (dbError) throw dbError;
+        setUploadProgress(100);
       }
       
       toast.success("Document(s) uploaded successfully");

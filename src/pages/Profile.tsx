@@ -102,8 +102,9 @@ const Profile = () => {
             <div className="p-2">
               <Button 
                 onClick={() => navigate("/")}
-                className="w-full px-3 py-2 flex justify-center items-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+                className="w-full px-3 py-2 flex justify-center items-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
               >
+                <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
               </Button>
             </div>

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { Calendar, Clock, Search, Video, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer";
-import { useMediaQuery } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Meeting {
   id: string;
@@ -36,7 +35,7 @@ const MeetingHistoryTab: React.FC<MeetingHistoryTabProps> = ({ user }) => {
   const [editedTranscript, setEditedTranscript] = useState<string>("");
   const [editedSummary, setEditedSummary] = useState<string>("");
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isMobile = useIsMobile();
 
   // Sample meeting data (this would typically come from your database)
   const meetings: Meeting[] = [
