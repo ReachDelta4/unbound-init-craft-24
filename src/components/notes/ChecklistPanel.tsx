@@ -1,9 +1,11 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChecklistState } from "./checklist/useChecklistState";
 import ChecklistItem from "./checklist/ChecklistItem";
+import LockableHeader from "./LockableHeader";
+import { useNotesState } from "@/hooks/use-notes-state";
 
 const ChecklistPanel = () => {
   const { 
@@ -14,8 +16,36 @@ const ChecklistPanel = () => {
     deleteChecklistItem, 
     moveChecklistItem, 
     startEditingChecklistItem, 
-    saveChecklistItemLabel 
+    saveChecklistItemLabel, 
+    setChecklist
   } = useChecklistState();
+
+  const {
+    saveNote,
+    isNoteLocked,
+    toggleNoteLock,
+    notes,
+    isLoading
+  } = useNotesState();
+
+  const isLocked = isNoteLocked('checklist');
+
+  // Load checklist from database if it exists
+  useEffect(() => {
+    if (!isLoading) {
+      const checklistNote = notes.find(note => note.note_type === 'checklist');
+      if (checklistNote && checklistNote.content) {
+        setChecklist(checklistNote.content);
+      }
+    }
+  }, [notes, isLoading, setChecklist]);
+
+  // Save checklist to database when it changes
+  useEffect(() => {
+    if (checklist.length > 0) {
+      saveNote('checklist', checklist, isLocked);
+    }
+  }, [checklist, isLocked, saveNote]);
 
   // Render checklist items (recursively for better organization)
   const renderChecklistItems = () => {
@@ -38,19 +68,25 @@ const ChecklistPanel = () => {
           onMoveItem={moveChecklistItem}
           onStartEditing={startEditingChecklistItem}
           onSaveLabel={saveChecklistItemLabel}
+          disabled={isLocked}
         />
       );
     });
   };
 
+  const handleToggleLock = () => {
+    toggleNoteLock('checklist');
+  };
+
   return (
     <div className="bg-muted rounded-lg p-4 mb-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-muted-foreground">Call Structure</h3>
-        <Button variant="ghost" size="sm" onClick={() => addChecklistItem()} title="Add item">
-          <Plus size={16} />
-        </Button>
-      </div>
+      <LockableHeader
+        title="Call Structure"
+        isLocked={isLocked}
+        onToggleLock={handleToggleLock}
+        onAddItem={() => addChecklistItem()}
+        showAddButton={true}
+      />
       <div className="space-y-4 group">
         {renderChecklistItems()}
       </div>

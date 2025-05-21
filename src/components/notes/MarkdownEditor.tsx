@@ -1,6 +1,9 @@
 
 import React, { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Lock, Unlock } from "lucide-react";
+import { useNotesState } from "@/hooks/use-notes-state";
 
 interface MarkdownLine {
   id: string;
@@ -56,9 +59,19 @@ const renderMarkdownLine = (line: string): string => {
 const MarkdownEditor = () => {
   const initialNotes = "# Meeting Notes\n\nKey points:\n- Client interested in our enterprise plan\n- Need to follow up with pricing details\n- Technical integration is a priority\n";
   
+  const {
+    saveNote,
+    isNoteLocked,
+    toggleNoteLock,
+    notes,
+    isLoading
+  } = useNotesState();
+  
+  const isLocked = isNoteLocked('markdown');
+  
   // Convert initial notes to markdown lines
-  const createInitialMarkdownLines = () => {
-    return initialNotes.split('\n').map((line, index) => ({
+  const createInitialMarkdownLines = (content: string) => {
+    return content.split('\n').map((line, index) => ({
       id: `line-${index}`,
       rawContent: line,
       renderedContent: renderMarkdownLine(line),
@@ -66,12 +79,32 @@ const MarkdownEditor = () => {
     }));
   };
 
-  const [markdownLines, setMarkdownLines] = useState<MarkdownLine[]>(createInitialMarkdownLines());
+  const [markdownLines, setMarkdownLines] = useState<MarkdownLine[]>(createInitialMarkdownLines(initialNotes));
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
   const lineInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
 
+  // Load notes from database if they exist
+  useEffect(() => {
+    if (!isLoading) {
+      const markdownNote = notes.find(note => note.note_type === 'markdown');
+      if (markdownNote && markdownNote.content?.raw) {
+        setMarkdownLines(createInitialMarkdownLines(markdownNote.content.raw));
+      }
+    }
+  }, [notes, isLoading]);
+
+  // Save notes to database when they change
+  useEffect(() => {
+    const rawContent = markdownLines.map(line => line.rawContent).join('\n');
+    if (rawContent) {
+      saveNote('markdown', { raw: rawContent }, isLocked);
+    }
+  }, [markdownLines, isLocked, saveNote]);
+
   // Handle Markdown line editing
   const startEditingLine = (id: string) => {
+    if (isLocked) return;
+    
     setMarkdownLines(markdownLines.map(line => 
       line.id === id ? { ...line, isEditing: true } : line
     ));
@@ -87,6 +120,8 @@ const MarkdownEditor = () => {
 
   // Handle line input change
   const handleLineChange = (id: string, content: string) => {
+    if (isLocked) return;
+    
     setMarkdownLines(markdownLines.map(line => 
       line.id === id ? { ...line, rawContent: content } : line
     ));
@@ -94,6 +129,8 @@ const MarkdownEditor = () => {
 
   // Handle finishing edit (on Enter or blur)
   const finishEditingLine = (id: string) => {
+    if (isLocked) return;
+    
     const updatedLines = markdownLines.map(line => 
       line.id === id ? { 
         ...line, 
@@ -107,6 +144,8 @@ const MarkdownEditor = () => {
 
   // Handle key press in markdown line input
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>, id: string, index: number) => {
+    if (isLocked) return;
+    
     if (e.key === 'Enter') {
       e.preventDefault();
       // Create a new line
@@ -175,30 +214,47 @@ const MarkdownEditor = () => {
     return "my-0.5";
   };
 
+  const handleToggleLock = () => {
+    toggleNoteLock('markdown');
+  };
+
   return (
-    <div className="h-full p-4 bg-muted border border-input rounded-md">
-      {markdownLines.map((line, index) => (
-        <div key={line.id} className={getLineClass(line.rawContent)}>
-          {line.isEditing || line.id === activeLineId ? (
-            <Input
-              ref={(el) => lineInputRefs.current[line.id] = el}
-              value={line.rawContent}
-              onChange={(e) => handleLineChange(line.id, e.target.value)}
-              onBlur={() => finishEditingLine(line.id)}
-              onKeyDown={(e) => handleKeyDown(e, line.id, index)}
-              className="bg-transparent border-none h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-              autoFocus={line.id === activeLineId}
-            />
-          ) : (
-            <div 
-              onClick={() => startEditingLine(line.id)}
-              className="cursor-text min-h-[1.5rem]"
-            >
-              {line.renderedContent || ' '}
-            </div>
-          )}
-        </div>
-      ))}
+    <div className="h-full flex flex-col">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-medium text-muted-foreground">Notes</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleToggleLock}
+          title={isLocked ? "Unlock notes" : "Lock notes"}
+        >
+          {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+        </Button>
+      </div>
+      <div className="flex-1 p-4 bg-muted border border-input rounded-md overflow-auto">
+        {markdownLines.map((line, index) => (
+          <div key={line.id} className={getLineClass(line.rawContent)}>
+            {(line.isEditing || line.id === activeLineId) && !isLocked ? (
+              <Input
+                ref={(el) => lineInputRefs.current[line.id] = el}
+                value={line.rawContent}
+                onChange={(e) => handleLineChange(line.id, e.target.value)}
+                onBlur={() => finishEditingLine(line.id)}
+                onKeyDown={(e) => handleKeyDown(e, line.id, index)}
+                className="bg-transparent border-none h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                autoFocus={line.id === activeLineId}
+              />
+            ) : (
+              <div 
+                onClick={() => !isLocked && startEditingLine(line.id)}
+                className={`min-h-[1.5rem] ${!isLocked ? "cursor-text" : ""}`}
+              >
+                {line.renderedContent || ' '}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

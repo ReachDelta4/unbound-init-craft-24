@@ -17,6 +17,7 @@ interface MeetingControlsProps {
   onCallTypeChange: (value: string) => void;
   onStartCall: () => void;
   onEndCall: () => void;
+  isLoading?: boolean;
 }
 
 const MeetingControls = ({
@@ -26,6 +27,7 @@ const MeetingControls = ({
   onCallTypeChange,
   onStartCall,
   onEndCall,
+  isLoading = false,
 }: MeetingControlsProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -45,7 +47,7 @@ const MeetingControls = ({
       <Select
         value={callType || ""}
         onValueChange={onCallTypeChange}
-        disabled={isCallActive}
+        disabled={isCallActive || isLoading}
       >
         <SelectTrigger className="w-[200px]">
           <SelectValue placeholder="Select call type" />
@@ -72,6 +74,7 @@ const MeetingControls = ({
           variant="destructive" 
           size="lg"
           className="gap-2"
+          disabled={isLoading}
         >
           <StopCircle size={18} />
           End Call
@@ -81,11 +84,15 @@ const MeetingControls = ({
           onClick={onStartCall} 
           variant="default" 
           size="lg"
-          disabled={!callType}
+          disabled={!callType || isLoading}
           className="bg-indigo-600 hover:bg-indigo-700 gap-2"
         >
-          <Play size={18} />
-          Start Call
+          {isLoading ? "Starting..." : (
+            <>
+              <Play size={18} />
+              Start Call
+            </>
+          )}
         </Button>
       )}
     </div>

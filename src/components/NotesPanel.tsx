@@ -6,12 +6,22 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ChecklistPanel from "./notes/ChecklistPanel";
 import QuestionsPanel from "./notes/QuestionsPanel";
 import MarkdownEditor from "./notes/MarkdownEditor";
+import { useNotesState } from "@/hooks/use-notes-state";
 
 interface NotesPanelProps {
   isCallActive: boolean;
 }
 
 const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
+  const { resetNotes } = useNotesState();
+  
+  // Reset unlocked notes when call starts
+  React.useEffect(() => {
+    if (isCallActive) {
+      resetNotes();
+    }
+  }, [isCallActive, resetNotes]);
+  
   return (
     <div className="h-full flex flex-col">
       <Tabs defaultValue="checklist" className="w-full h-full flex flex-col">

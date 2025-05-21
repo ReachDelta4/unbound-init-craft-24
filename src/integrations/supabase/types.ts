@@ -87,6 +87,121 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_insights: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          insight_type: string
+          level: number | null
+          meeting_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          insight_type: string
+          level?: number | null
+          meeting_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          insight_type?: string
+          level?: number | null
+          meeting_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_insights_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_notes: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          is_locked: boolean
+          meeting_id: string | null
+          note_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          meeting_id?: string | null
+          note_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          meeting_id?: string | null
+          note_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_notes_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meetings: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          platform: string | null
+          status: string
+          summary: string | null
+          title: string
+          transcript: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          id?: string
+          platform?: string | null
+          status?: string
+          summary?: string | null
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          platform?: string | null
+          status?: string
+          summary?: string | null
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
