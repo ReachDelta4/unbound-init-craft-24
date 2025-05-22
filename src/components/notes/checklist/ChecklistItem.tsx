@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Trash2, MoreHorizontal, ChevronDown, ChevronRight } from "lucide-react";
+import { Trash2, MoreHorizontal, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -116,6 +116,16 @@ const ChecklistItem = ({
         <div className="flex-shrink-0 space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {!disabled && (
             <>
+              {/* Add subtask button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => onAddItem(item.id)}
+                title="Add subtask"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-6 w-6" title="More options">

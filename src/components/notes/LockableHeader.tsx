@@ -2,6 +2,8 @@
 import React from "react";
 import { Lock, Unlock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Toggle } from "@/components/ui/toggle";
+import { cn } from "@/lib/utils";
 
 interface LockableHeaderProps {
   title: string;
@@ -33,14 +35,17 @@ const LockableHeader = ({
             <Plus size={16} />
           </Button>
         )}
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={onToggleLock}
+        <Toggle 
+          pressed={isLocked}
+          onPressedChange={onToggleLock}
           title={isLocked ? "Unlock section" : "Lock section"}
+          className="h-8 w-8 p-0 data-[state=on]:bg-muted data-[state=on]:text-muted-foreground"
+          aria-label={isLocked ? "Unlock section" : "Lock section"}
         >
-          {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
-        </Button>
+          <div className={cn("transition-transform duration-300", isLocked ? "" : "rotate-12")}>
+            {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+          </div>
+        </Toggle>
       </div>
     </div>
   );

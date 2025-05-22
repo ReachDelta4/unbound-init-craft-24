@@ -1,11 +1,13 @@
 
-import React, { useEffect } from "react";
-import { Plus } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { useChecklistState } from "./checklist/useChecklistState";
 import ChecklistItem from "./checklist/ChecklistItem";
 import LockableHeader from "./LockableHeader";
 import { useNotesState } from "@/hooks/use-notes-state";
+import { ChecklistItem as ChecklistItemType } from "./checklist/types";
+import { useToast } from "@/hooks/use-toast";
 
 const ChecklistPanel = () => {
   const { 
@@ -28,24 +30,69 @@ const ChecklistPanel = () => {
     isLoading
   } = useNotesState();
 
-  const isLocked = isNoteLocked('checklist');
+  const { toast } = useToast();
+  const [isLocked, setIsLocked] = useState(isNoteLocked('checklist'));
 
   // Load checklist from database if it exists
   useEffect(() => {
     if (!isLoading) {
       const checklistNote = notes.find(note => note.note_type === 'checklist');
       if (checklistNote && checklistNote.content) {
-        setChecklist(checklistNote.content);
+        try {
+          // Ensure content is the expected format
+          if (Array.isArray(checklistNote.content)) {
+            setChecklist(checklistNote.content);
+          }
+        } catch (error) {
+          console.error('Error setting checklist data:', error);
+        }
       }
+      
+      // Update local lock state
+      setIsLocked(isNoteLocked('checklist'));
     }
-  }, [notes, isLoading, setChecklist]);
+  }, [notes, isLoading, setChecklist, isNoteLocked]);
 
   // Save checklist to database when it changes
   useEffect(() => {
-    if (checklist.length > 0) {
-      saveNote('checklist', checklist, isLocked);
+    const saveChecklistToDatabase = async () => {
+      if (checklist.length > 0) {
+        try {
+          await saveNote('checklist', checklist, isLocked);
+        } catch (error) {
+          console.error('Error saving checklist:', error);
+          toast({
+            title: "Failed to save checklist",
+            description: "There was an error saving your checklist items.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    
+    saveChecklistToDatabase();
+  }, [checklist, isLocked, saveNote, toast]);
+
+  // Handle toggling lock
+  const handleToggleLock = async () => {
+    try {
+      const newLockState = await toggleNoteLock('checklist');
+      setIsLocked(newLockState);
+      toast({
+        title: newLockState ? "Checklist locked" : "Checklist unlocked",
+        description: newLockState 
+          ? "The checklist will be preserved for future calls." 
+          : "The checklist will be reset for new calls.",
+      });
+    } catch (error) {
+      console.error('Error toggling lock:', error);
+      toast({
+        title: "Failed to toggle lock",
+        description: "There was an error updating the lock state.",
+        variant: "destructive",
+      });
     }
-  }, [checklist, isLocked, saveNote]);
+  };
 
   // Render checklist items (recursively for better organization)
   const renderChecklistItems = () => {
@@ -74,10 +121,6 @@ const ChecklistPanel = () => {
     });
   };
 
-  const handleToggleLock = () => {
-    toggleNoteLock('checklist');
-  };
-
   return (
     <div className="bg-muted rounded-lg p-4 mb-4">
       <LockableHeader
@@ -89,6 +132,19 @@ const ChecklistPanel = () => {
       />
       <div className="space-y-4 group">
         {renderChecklistItems()}
+        {!isLocked && checklist.length === 0 && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => addChecklistItem()}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add your first checklist item
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
