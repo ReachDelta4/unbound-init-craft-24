@@ -13,8 +13,10 @@ import { useNotesState } from "@/hooks/use-notes-state";
 import MeetingEndDialog from "@/components/MeetingEndDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
+  const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isCallActive, setIsCallActive] = useState(false);
@@ -105,30 +107,52 @@ const Index = () => {
   const handleSaveMeeting = async (title: string, transcript: string, summary: string) => {
     if (!activeMeeting || !user) return;
     
-    // Prepare insights for saving
-    const insightsForSaving = [
-      { type: 'emotions', data: currentInsights.emotions },
-      { type: 'painPoints', data: currentInsights.painPoints },
-      { type: 'objections', data: currentInsights.objections },
-      { type: 'recommendations', data: currentInsights.recommendations },
-      { type: 'nextActions', data: currentInsights.nextActions }
-    ];
+    toast({
+      title: "Saving meeting...",
+      description: "Please wait while your meeting data is being saved.",
+    });
     
-    // Update meeting and save insights
-    const meetingId = await endMeeting(transcript, summary, insightsForSaving);
-    
-    if (meetingId) {
-      // Update meeting title
-      await updateMeeting(meetingId, { title });
+    try {
+      // Prepare insights for saving
+      const insightsForSaving = [
+        { type: 'emotions', data: currentInsights.emotions },
+        { type: 'painPoints', data: currentInsights.painPoints },
+        { type: 'objections', data: currentInsights.objections },
+        { type: 'recommendations', data: currentInsights.recommendations },
+        { type: 'nextActions', data: currentInsights.nextActions }
+      ];
       
-      // Save notes to meeting
-      await saveNotesToMeeting(meetingId, [
-        { type: 'markdown', content: { raw: transcript } }
-      ]);
+      // Update meeting and save insights
+      const meetingId = await endMeeting(transcript, summary, insightsForSaving);
       
-      setShowMeetingDialog(false);
-      setCallDuration(0);
-      setCallType(null);
+      if (meetingId) {
+        // Update meeting title - we'll do this in parallel with saving notes
+        const updatePromise = updateMeeting(meetingId, { title });
+        
+        // Save notes to meeting - also in parallel
+        const notesPromise = saveNotesToMeeting(meetingId, [
+          { type: 'markdown', content: { raw: transcript } }
+        ]);
+        
+        // Wait for both operations to complete
+        await Promise.all([updatePromise, notesPromise]);
+        
+        toast({
+          title: "Meeting saved",
+          description: "Your meeting data has been saved successfully."
+        });
+        
+        setShowMeetingDialog(false);
+        setCallDuration(0);
+        setCallType(null);
+      }
+    } catch (error) {
+      console.error("Error saving meeting:", error);
+      toast({
+        title: "Error saving meeting",
+        description: "There was a problem saving your meeting data. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
