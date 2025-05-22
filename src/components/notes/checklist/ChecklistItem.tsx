@@ -6,12 +6,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { ChecklistItemType } from "./types";
+import { ChecklistItem as ChecklistItemType } from "./types";
 
 interface ChecklistItemProps {
   item: ChecklistItemType;
   childItems: ChecklistItemType[];
-  onToggleComplete: (id: string) => void;
+  onToggleComplete: (id: string, completed: boolean) => void;
   onToggleOpen: (id: string) => void;
   onAddItem: (parentId?: string) => void;
   onDeleteItem: (id: string) => void;
@@ -79,8 +79,8 @@ const ChecklistItem = ({
         {/* Checkbox for completion */}
         <div className="mr-2 mt-0.5">
           <Checkbox
-            checked={item.isComplete}
-            onCheckedChange={() => !disabled && onToggleComplete(item.id)}
+            checked={item.completed}
+            onCheckedChange={() => !disabled && onToggleComplete(item.id, !item.completed)}
             disabled={disabled}
             className="mt-0.5"
           />
@@ -103,7 +103,7 @@ const ChecklistItem = ({
             <div
               className={cn(
                 "cursor-text rounded py-0.5 px-1 -ml-1 hover:bg-secondary transition-colors",
-                item.isComplete && "line-through text-muted-foreground"
+                item.completed && "line-through text-muted-foreground"
               )}
               onClick={() => !disabled && onStartEditing(item.id)}
             >

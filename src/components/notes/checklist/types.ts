@@ -1,10 +1,13 @@
 
 export interface ChecklistItem {
-  id: number;
+  id: string;
   label: string;
   completed: boolean;
-  parentId?: number | null;
-  children: number[];
+  parentId?: string | null;
+  children: string[];
   isEditing?: boolean;
   isOpen?: boolean;
 }
+
+// Alias for backward compatibility
+export type ChecklistItemType = ChecklistItem;

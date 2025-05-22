@@ -10,14 +10,14 @@ import { useNotesState } from "@/hooks/use-notes-state";
 const ChecklistPanel = () => {
   const { 
     checklist, 
+    setChecklist,
     toggleChecklistItem, 
     toggleItemOpen, 
     addChecklistItem, 
     deleteChecklistItem, 
     moveChecklistItem, 
     startEditingChecklistItem, 
-    saveChecklistItemLabel, 
-    setChecklist
+    saveChecklistItemLabel
   } = useChecklistState();
 
   const {
