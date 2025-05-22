@@ -126,6 +126,7 @@ const ChecklistPanel = () => {
           onStartEditing={startEditingChecklistItem}
           onSaveLabel={saveChecklistItemLabel}
           disabled={isLocked}
+          allItems={checklist} // Pass the entire checklist for recursive rendering
         />
       );
     });

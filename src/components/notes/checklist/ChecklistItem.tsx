@@ -20,6 +20,7 @@ interface ChecklistItemProps {
   onSaveLabel: (id: string, label: string) => void;
   level?: number;
   disabled?: boolean;
+  allItems?: ChecklistItemType[]; // Pass all items to allow recursive rendering
 }
 
 const ChecklistItem = ({
@@ -33,7 +34,8 @@ const ChecklistItem = ({
   onStartEditing,
   onSaveLabel,
   level = 0,
-  disabled = false
+  disabled = false,
+  allItems = [] // Default to empty array
 }: ChecklistItemProps) => {
   const [isEditingLabel, setIsEditingLabel] = useState(item.isEditing || false);
   const [editedLabel, setEditedLabel] = useState(item.label);
@@ -73,7 +75,7 @@ const ChecklistItem = ({
     }
   };
 
-  // Handle checkbox click separately to prevent propagation
+  // Handle checkbox change separately to prevent propagation
   const handleCheckboxChange = (checked: boolean) => {
     if (!disabled) {
       onToggleComplete(item.id, checked);
@@ -203,7 +205,7 @@ const ChecklistItem = ({
             <ChecklistItem
               key={childItem.id}
               item={childItem}
-              childItems={checklist.filter(item => item.parentId === childItem.id)}
+              childItems={allItems.filter(item => item.parentId === childItem.id)}
               onToggleComplete={onToggleComplete}
               onToggleOpen={onToggleOpen}
               onAddItem={onAddItem}
@@ -213,6 +215,7 @@ const ChecklistItem = ({
               onSaveLabel={onSaveLabel}
               level={level + 1}
               disabled={disabled}
+              allItems={allItems} // Pass all items to child components
             />
           ))}
         </div>
