@@ -214,8 +214,9 @@ const MarkdownEditor = () => {
     return "my-0.5";
   };
 
-  const handleToggleLock = () => {
-    toggleNoteLock('markdown');
+  const handleToggleLock = async () => {
+    const newLockState = await toggleNoteLock('markdown');
+    setIsLocked(newLockState);
   };
 
   return (

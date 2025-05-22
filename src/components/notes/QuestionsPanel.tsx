@@ -81,8 +81,9 @@ const QuestionsPanel = () => {
     ));
   };
 
-  const handleToggleLock = () => {
-    toggleNoteLock('questions');
+  const handleToggleLock = async () => {
+    const newLockState = await toggleNoteLock('questions');
+    setIsLocked(newLockState);
   };
 
   return (

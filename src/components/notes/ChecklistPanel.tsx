@@ -71,9 +71,8 @@ const ChecklistPanel = () => {
   // Handle toggling lock
   const handleToggleLock = async () => {
     try {
-      const newLockState = !isLocked;
+      const newLockState = await toggleNoteLock('checklist');
       setIsLocked(newLockState);
-      await toggleNoteLock('checklist');
       toast({
         title: newLockState ? "Checklist locked" : "Checklist unlocked",
         description: newLockState 
