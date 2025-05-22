@@ -3,14 +3,7 @@ import { useState } from "react";
 import { ChecklistItem } from "./types";
 
 export const useChecklistState = () => {
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([
-    { id: "1", label: "Introduction", completed: true, children: [], isOpen: false },
-    { id: "2", label: "Present key features", completed: false, children: ["3", "4"], isOpen: false },
-    { id: "3", label: "Technical details", completed: false, parentId: "2", children: [], isOpen: false },
-    { id: "4", label: "Benefits", completed: false, parentId: "2", children: [], isOpen: false },
-    { id: "5", label: "Endoscopy", completed: false, children: ["6"], isOpen: false },
-    { id: "6", label: "Advanced techniques", completed: false, parentId: "5", children: [], isOpen: false },
-  ]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
 
   // Toggle checklist item completion
   const toggleChecklistItem = (id: string, completed: boolean) => {

@@ -24,7 +24,7 @@ const LockableHeader = ({
     <div className="flex items-center justify-between mb-2">
       <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
       <div className="flex items-center gap-1">
-        {showAddButton && (
+        {showAddButton && !isLocked && (
           <Button 
             variant="ghost" 
             size="sm" 
@@ -35,17 +35,18 @@ const LockableHeader = ({
             <Plus size={16} />
           </Button>
         )}
-        <Toggle 
-          pressed={isLocked}
-          onPressedChange={onToggleLock}
+        <Button 
+          variant="ghost"
+          size="sm" 
+          onClick={onToggleLock}
           title={isLocked ? "Unlock section" : "Lock section"}
-          className="h-8 w-8 p-0 data-[state=on]:bg-muted data-[state=on]:text-muted-foreground"
+          className="h-8 w-8 p-0 hover:bg-muted"
           aria-label={isLocked ? "Unlock section" : "Lock section"}
         >
           <div className={cn("transition-transform duration-300", isLocked ? "" : "rotate-12")}>
             {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
           </div>
-        </Toggle>
+        </Button>
       </div>
     </div>
   );

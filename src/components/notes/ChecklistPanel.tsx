@@ -31,7 +31,8 @@ const ChecklistPanel = () => {
   } = useNotesState();
 
   const { toast } = useToast();
-  const [isLocked, setIsLocked] = useState(isNoteLocked('checklist'));
+  const [isLocked, setIsLocked] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Load checklist from database if it exists
   useEffect(() => {
@@ -49,14 +50,16 @@ const ChecklistPanel = () => {
       }
       
       // Update local lock state
-      setIsLocked(isNoteLocked('checklist'));
+      const locked = isNoteLocked('checklist');
+      setIsLocked(locked);
+      setInitialLoadDone(true);
     }
   }, [notes, isLoading, setChecklist, isNoteLocked]);
 
   // Save checklist to database when it changes
   useEffect(() => {
     const saveChecklistToDatabase = async () => {
-      if (checklist.length > 0) {
+      if (initialLoadDone && checklist.length > 0) {
         try {
           await saveNote('checklist', checklist, isLocked);
         } catch (error) {
@@ -71,7 +74,7 @@ const ChecklistPanel = () => {
     };
     
     saveChecklistToDatabase();
-  }, [checklist, isLocked, saveNote, toast]);
+  }, [checklist, isLocked, saveNote, toast, initialLoadDone]);
 
   // Handle toggling lock
   const handleToggleLock = async () => {
@@ -91,6 +94,13 @@ const ChecklistPanel = () => {
         description: "There was an error updating the lock state.",
         variant: "destructive",
       });
+    }
+  };
+
+  // Handle adding a new checklist item
+  const handleAddItem = () => {
+    if (!isLocked) {
+      addChecklistItem();
     }
   };
 
@@ -127,8 +137,8 @@ const ChecklistPanel = () => {
         title="Call Structure"
         isLocked={isLocked}
         onToggleLock={handleToggleLock}
-        onAddItem={() => addChecklistItem()}
-        showAddButton={true}
+        onAddItem={handleAddItem}
+        showAddButton={!isLocked}
       />
       <div className="space-y-4 group">
         {renderChecklistItems()}
@@ -138,7 +148,7 @@ const ChecklistPanel = () => {
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={() => addChecklistItem()}
+              onClick={handleAddItem}
             >
               <Plus className="mr-1 h-4 w-4" />
               Add your first checklist item
