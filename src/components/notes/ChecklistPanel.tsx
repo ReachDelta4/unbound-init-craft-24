@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -22,14 +21,7 @@ const ChecklistPanel = () => {
     saveChecklistItemLabel
   } = useChecklistState();
 
-  const {
-    saveNote,
-    isNoteLocked,
-    toggleNoteLock,
-    notes,
-    isLoading
-  } = useNotesState();
-
+  const { toggleNoteLock, saveNote, notes, isLoading, isNoteLocked } = useNotesState();
   const { toast } = useToast();
   const [isLocked, setIsLocked] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -48,7 +40,7 @@ const ChecklistPanel = () => {
           console.error('Error setting checklist data:', error);
         }
       }
-      
+
       // Update local lock state
       const locked = isNoteLocked('checklist');
       setIsLocked(locked);
@@ -72,15 +64,16 @@ const ChecklistPanel = () => {
         }
       }
     };
-    
+
     saveChecklistToDatabase();
   }, [checklist, isLocked, saveNote, toast, initialLoadDone]);
 
   // Handle toggling lock
   const handleToggleLock = async () => {
     try {
-      const newLockState = await toggleNoteLock('checklist');
+      const newLockState = !isLocked;
       setIsLocked(newLockState);
+      await toggleNoteLock('checklist');
       toast({
         title: newLockState ? "Checklist locked" : "Checklist unlocked",
         description: newLockState 
@@ -89,6 +82,7 @@ const ChecklistPanel = () => {
       });
     } catch (error) {
       console.error('Error toggling lock:', error);
+      setIsLocked(!isLocked); // Revert on error
       toast({
         title: "Failed to toggle lock",
         description: "There was an error updating the lock state.",
@@ -108,11 +102,11 @@ const ChecklistPanel = () => {
   const renderChecklistItems = () => {
     // First render top level items (no parent)
     const topLevelItems = checklist.filter(item => !item.parentId);
-    
+
     return topLevelItems.map(item => {
       // Get child items for this parent
       const childItems = checklist.filter(childItem => childItem.parentId === item.id);
-      
+
       return (
         <ChecklistItem
           key={item.id}

@@ -47,7 +47,12 @@ const MeetingEndDialog = ({
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      await onSave(title, transcript, summary);
+      const savePromise = onSave(title, transcript, summary);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Save timeout')), 5000)
+      );
+      
+      await Promise.race([savePromise, timeoutPromise]);
       toast({
         title: "Meeting saved",
         description: "Your meeting has been successfully saved.",

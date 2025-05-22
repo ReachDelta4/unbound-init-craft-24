@@ -45,6 +45,11 @@ export const useMeetingState = () => {
   const startMeeting = async (platform: string) => {
     if (!user) return null;
     
+    let timeout: NodeJS.Timeout;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
+    });
+    
     try {
       setIsCreatingMeeting(true);
       

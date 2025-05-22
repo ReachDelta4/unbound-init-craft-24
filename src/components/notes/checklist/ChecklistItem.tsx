@@ -76,7 +76,8 @@ const ChecklistItem = ({
   };
 
   // Handle checkbox change separately to prevent propagation
-  const handleCheckboxChange = (checked: boolean) => {
+  const handleCheckboxChange = (e: React.MouseEvent, checked: boolean) => {
+    e.stopPropagation();
     if (!disabled) {
       onToggleComplete(item.id, checked);
     }
