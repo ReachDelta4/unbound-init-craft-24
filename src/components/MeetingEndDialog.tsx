@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 
 interface MeetingInsight {
@@ -19,6 +20,7 @@ interface MeetingEndDialogProps {
   transcript: string;
   summary: string;
   insights: MeetingInsight[];
+  saveProgress?: number;
 }
 
 const MeetingEndDialog = ({
@@ -27,7 +29,8 @@ const MeetingEndDialog = ({
   onSave,
   transcript: initialTranscript,
   summary: initialSummary,
-  insights
+  insights,
+  saveProgress = 0
 }: MeetingEndDialogProps) => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("summary");
@@ -35,42 +38,89 @@ const MeetingEndDialog = ({
   const [transcript, setTranscript] = useState(initialTranscript);
   const [summary, setSummary] = useState(initialSummary);
   const [isSaving, setIsSaving] = useState(false);
+  const [internalProgress, setInternalProgress] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
       setTitle("New Meeting");
       setTranscript(initialTranscript);
       setSummary(initialSummary);
+      setInternalProgress(0);
     }
   }, [isOpen, initialTranscript, initialSummary]);
+
+  // Update internal progress based on incoming saveProgress
+  useEffect(() => {
+    if (saveProgress > 0) {
+      setInternalProgress(saveProgress);
+      if (saveProgress >= 100) {
+        // Auto-close after completion
+        setTimeout(() => {
+          setIsSaving(false);
+          toast({
+            title: "Meeting saved",
+            description: "Your meeting has been successfully saved.",
+          });
+        }, 500);
+      }
+    }
+  }, [saveProgress, toast]);
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const savePromise = onSave(title, transcript, summary);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Save timeout')), 5000)
-      );
       
-      await Promise.race([savePromise, timeoutPromise]);
-      toast({
-        title: "Meeting saved",
-        description: "Your meeting has been successfully saved.",
-      });
+      // Start progress animation
+      setInternalProgress(10);
+      const progressInterval = setInterval(() => {
+        setInternalProgress(prev => {
+          // Increment until 90% (leave room for actual completion)
+          if (prev < 90 && saveProgress === 0) {
+            return prev + 5;
+          }
+          return prev;
+        });
+      }, 300);
+      
+      // Execute the save with a longer timeout
+      try {
+        await Promise.race([
+          onSave(title, transcript, summary),
+          // Longer timeout (15s) for large meeting data
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Save timeout')), 15000))
+        ]);
+        
+        // If save is handled by parent component via saveProgress, this won't execute
+        if (saveProgress === 0) {
+          setInternalProgress(100);
+          toast({
+            title: "Meeting saved",
+            description: "Your meeting has been successfully saved.",
+          });
+          setTimeout(() => {
+            setIsSaving(false);
+            setInternalProgress(0);
+          }, 500);
+        }
+      } catch (error) {
+        throw error;
+      } finally {
+        clearInterval(progressInterval);
+      }
     } catch (error) {
       console.error("Error saving meeting:", error);
       toast({
         title: "Failed to save meeting",
-        description: "There was an error saving your meeting.",
+        description: "There was an error saving your meeting. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsSaving(false);
+      setInternalProgress(0);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSaving && onClose()}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Save Meeting</DialogTitle>
@@ -78,6 +128,16 @@ const MeetingEndDialog = ({
             Review and edit your meeting details before saving.
           </DialogDescription>
         </DialogHeader>
+
+        {(isSaving || internalProgress > 0) && (
+          <div className="mb-4">
+            <div className="flex justify-between text-sm mb-1">
+              <span>Saving your meeting</span>
+              <span>{Math.round(Math.max(internalProgress, saveProgress))}%</span>
+            </div>
+            <Progress value={Math.max(internalProgress, saveProgress)} className="h-2" />
+          </div>
+        )}
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
@@ -89,18 +149,19 @@ const MeetingEndDialog = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter meeting title"
+              disabled={isSaving}
             />
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full">
-              <TabsTrigger value="summary" className="flex-1">
+              <TabsTrigger value="summary" className="flex-1" disabled={isSaving}>
                 Summary
               </TabsTrigger>
-              <TabsTrigger value="transcript" className="flex-1">
+              <TabsTrigger value="transcript" className="flex-1" disabled={isSaving}>
                 Transcript
               </TabsTrigger>
-              <TabsTrigger value="insights" className="flex-1">
+              <TabsTrigger value="insights" className="flex-1" disabled={isSaving}>
                 Insights
               </TabsTrigger>
             </TabsList>
@@ -115,6 +176,7 @@ const MeetingEndDialog = ({
                 onChange={(e) => setSummary(e.target.value)}
                 placeholder="Enter or edit meeting summary"
                 className="min-h-[200px]"
+                disabled={isSaving}
               />
             </TabsContent>
 
@@ -128,6 +190,7 @@ const MeetingEndDialog = ({
                 onChange={(e) => setTranscript(e.target.value)}
                 placeholder="Enter or edit meeting transcript"
                 className="min-h-[200px] font-mono text-sm"
+                disabled={isSaving}
               />
             </TabsContent>
 
@@ -183,10 +246,18 @@ const MeetingEndDialog = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>
+          <Button 
+            variant="outline" 
+            onClick={onClose} 
+            disabled={isSaving}
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className="relative"
+          >
             {isSaving ? "Saving..." : "Save Meeting"}
           </Button>
         </DialogFooter>

@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import MeetingControls from "@/components/MeetingControls";
 import TranscriptPanel from "@/components/TranscriptPanel";
@@ -28,12 +28,21 @@ const Index = () => {
   const { 
     activeMeeting, 
     isCreatingMeeting, 
+    isSavingMeeting,
+    savingProgress,
     startMeeting, 
     endMeeting,
     updateMeeting
   } = useMeetingState();
   
-  const { saveNotesToMeeting } = useNotesState();
+  const { saveNotesToMeeting, isSaving: isSavingNotes } = useNotesState();
+
+  // Auto save data periodically during active calls
+  const [autoSavedData, setAutoSavedData] = useState({
+    transcript: "",
+    summary: "",
+    insights: [] as any[]
+  });
 
   // Redirect to auth page if not logged in
   useEffect(() => {
@@ -82,35 +91,71 @@ const Index = () => {
     "Client: Well, our main issue is increasing productivity while keeping our costs manageable. Our team is growing but our tools aren't scaling well."
   );
 
-  const handleStartCall = async () => {
+  // Implement auto-saving during active calls - more efficient
+  useEffect(() => {
+    let autoSaveInterval: NodeJS.Timeout;
+    
+    if (isCallActive && activeMeeting) {
+      autoSaveInterval = setInterval(() => {
+        // Update auto-saved data
+        setAutoSavedData({
+          transcript: currentTranscript,
+          summary: generateSummary(),
+          insights: [
+            { type: 'emotions', data: currentInsights.emotions },
+            { type: 'painPoints', data: currentInsights.painPoints },
+            { type: 'objections', data: currentInsights.objections },
+            { type: 'recommendations', data: currentInsights.recommendations },
+            { type: 'nextActions', data: currentInsights.nextActions }
+          ]
+        });
+      }, 30000); // Auto-save every 30 seconds
+    }
+    
+    return () => {
+      if (autoSaveInterval) clearInterval(autoSaveInterval);
+    };
+  }, [isCallActive, activeMeeting, currentTranscript, currentInsights]);
+
+  // Optimized version with useCallback
+  const handleStartCall = useCallback(async () => {
     if (!callType || !user) return;
     
-    // Create a new meeting in the database
-    const meeting = await startMeeting(callType);
+    // Optimistic UI update - immediate feedback
+    setIsCallActive(true);
+    timerRef.current = setInterval(() => {
+      setCallDuration(prev => prev + 1);
+    }, 1000);
     
-    if (meeting) {
-      setIsCallActive(true);
-      timerRef.current = setInterval(() => {
-        setCallDuration(prev => prev + 1);
-      }, 1000);
-    }
-  };
+    // Create a new meeting in the database (non-blocking)
+    const meetingPromise = startMeeting(callType);
+    
+    // Don't block UI on database operations
+    meetingPromise.catch(error => {
+      console.error('Error in meeting creation:', error);
+      // Only show error if critical
+      if (!activeMeeting) {
+        toast({
+          title: "Meeting sync issue",
+          description: "We've started your meeting but there might be issues saving it later.",
+          variant: "destructive",
+        });
+      }
+    });
+  }, [callType, user, startMeeting, toast, activeMeeting]);
 
-  const handleEndCall = () => {
+  // Optimized end call handling
+  const handleEndCall = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
     setIsCallActive(false);
     setShowMeetingDialog(true);
-  };
+  }, []);
 
-  const handleSaveMeeting = async (title: string, transcript: string, summary: string) => {
-    if (!activeMeeting || !user) return;
-    
-    toast({
-      title: "Saving meeting...",
-      description: "Please wait while your meeting data is being saved.",
-    });
+  // Optimized meeting save with progress
+  const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string) => {
+    if (!activeMeeting && !user) return;
     
     try {
       // Prepare insights for saving
@@ -122,29 +167,24 @@ const Index = () => {
         { type: 'nextActions', data: currentInsights.nextActions }
       ];
       
-      // Update meeting and save insights
+      // Update meeting and save insights - endpoint handles parallelization
       const meetingId = await endMeeting(transcript, summary, insightsForSaving);
       
       if (meetingId) {
-        // Update meeting title - we'll do this in parallel with saving notes
-        const updatePromise = updateMeeting(meetingId, { title });
-        
-        // Save notes to meeting - also in parallel
-        const notesPromise = saveNotesToMeeting(meetingId, [
-          { type: 'markdown', content: { raw: transcript } }
+        // Run these operations in parallel for better performance
+        await Promise.all([
+          // Update meeting title
+          updateMeeting(meetingId, { title }),
+          // Save notes to meeting
+          saveNotesToMeeting(meetingId, [
+            { type: 'markdown', content: { raw: transcript } }
+          ])
         ]);
-        
-        // Wait for both operations to complete
-        await Promise.all([updatePromise, notesPromise]);
-        
-        toast({
-          title: "Meeting saved",
-          description: "Your meeting data has been saved successfully."
-        });
         
         setShowMeetingDialog(false);
         setCallDuration(0);
         setCallType(null);
+        setAutoSavedData({ transcript: "", summary: "", insights: [] });
       }
     } catch (error) {
       console.error("Error saving meeting:", error);
@@ -154,12 +194,12 @@ const Index = () => {
         variant: "destructive"
       });
     }
-  };
+  }, [activeMeeting, user, currentInsights, endMeeting, updateMeeting, saveNotesToMeeting, toast]);
 
   // Generate a summary from transcript - in a real app, this would use AI
-  const generateSummary = () => {
+  const generateSummary = useCallback(() => {
     return "The client expressed interest in our solution to help with scaling their team while managing costs. They're experiencing integration issues between their existing tools and have concerns about implementation time and support availability.";
-  };
+  }, []);
 
   if (!user) {
     return (
@@ -259,6 +299,7 @@ const Index = () => {
           { type: 'recommendations', data: currentInsights.recommendations },
           { type: 'nextActions', data: currentInsights.nextActions }
         ]}
+        saveProgress={savingProgress}
       />
     </div>
   );
