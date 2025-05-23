@@ -15,6 +15,24 @@ export const fetchUserNotes = async (userId: string) => {
   return data || [];
 };
 
+// Toggle note lock state
+export const toggleNoteLockState = async (noteId: string, isLocked: boolean) => {
+  try {
+    const { data, error } = await supabase
+      .from('meeting_notes')
+      .update({ is_locked: isLocked })
+      .eq('id', noteId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error toggling note lock state:', error);
+    throw error;
+  }
+};
+
 // Save or update a note with better error handling
 export const saveOrUpdateNote = async (
   userId: string,

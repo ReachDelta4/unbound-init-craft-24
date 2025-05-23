@@ -1,39 +1,18 @@
 
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Meeting, MeetingInsight } from "./meetings/types";
+import { 
+  createMeeting, 
+  updateMeetingInDb, 
+  completeMeeting, 
+  insertMeetingInsights,
+  getMeetingWithInsights
+} from "./meetings/meetings-db";
 
-export interface Meeting {
-  id: string;
-  title: string;
-  date: string;
-  time?: string;
-  platform: string | null;
-  participants?: string[];
-  transcript: string | null;
-  summary: string | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MeetingInsight {
-  id: string;
-  meeting_id: string;
-  insight_type: string;
-  content: string;
-  level?: number;
-}
-
-export interface MeetingNote {
-  id: string;
-  user_id: string;
-  meeting_id: string | null;
-  note_type: string;
-  content: any;
-  is_locked: boolean;
-}
+export type { Meeting, MeetingInsight } from "./meetings/types";
+export { MeetingNote } from "./meetings/types";
 
 export const useMeetingState = () => {
   const { user } = useAuth();
@@ -71,19 +50,7 @@ export const useMeetingState = () => {
       // Create meeting in database (non-blocking)
       const createMeetingPromise = new Promise<Meeting | null>(async (resolve) => {
         try {
-          const { data: meetingData, error: meetingError } = await supabase
-            .from('meetings')
-            .insert([{
-              user_id: user.id,
-              title: "New Meeting",
-              platform,
-              date: new Date().toISOString(),
-              status: 'active'
-            }])
-            .select('*')
-            .single();
-          
-          if (meetingError) throw meetingError;
+          const meetingData = await createMeeting(user.id, platform);
           
           // Update with real data once available
           setActiveMeeting(meetingData);
@@ -129,54 +96,26 @@ export const useMeetingState = () => {
       
       // If we don't have a real meeting ID yet, create the meeting first
       if (!meetingId) {
-        const { data, error } = await supabase
-          .from('meetings')
-          .insert([{
-            user_id: user.id,
-            title: "New Meeting",
-            platform: activeMeeting.platform,
-            date: new Date().toISOString(),
-            status: 'completed',
-            transcript,
-            summary
-          }])
-          .select('*')
-          .single();
-          
-        if (error) throw error;
+        const meetingData = await createMeeting(user.id, activeMeeting.platform || '');
         setSavingProgress(50);
         
         // Now handle insights in parallel
         if (insights && insights.length > 0) {
-          await processInsights(data.id, insights);
+          await insertMeetingInsights(meetingData.id, insights);
         }
         
         setSavingProgress(100);
-        return data.id;
+        return meetingData.id;
       }
       
       // For existing meetings, run operations in parallel
-      // 1. Update meeting
       setSavingProgress(20);
-      const updatePromise = supabase
-        .from('meetings')
-        .update({ 
-          transcript, 
-          summary,
-          status: 'completed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', meetingId);
       
-      // 2. Process insights (only if there are any)
-      let insightsPromise = Promise.resolve();
-      if (insights && insights.length > 0) {
-        insightsPromise = processInsights(meetingId, insights);
-      }
-      
-      // Wait for both operations to complete
-      const [updateResult, _] = await Promise.all([updatePromise, insightsPromise]);
-      if (updateResult.error) throw updateResult.error;
+      // 1. Update meeting and 2. Process insights in parallel
+      await Promise.all([
+        completeMeeting(meetingId, transcript, summary),
+        insertMeetingInsights(meetingId, insights)
+      ]);
       
       setSavingProgress(100);
       return meetingId;
@@ -195,61 +134,10 @@ export const useMeetingState = () => {
     }
   };
 
-  // Helper function to process insights in efficient batches
-  const processInsights = async (meetingId: string, insights: any[]) => {
-    // Convert insights to database format
-    const insightsToInsert = insights.flatMap(category => {
-      switch(category.type) {
-        case 'emotions':
-          return category.data.map((item: any) => ({
-            meeting_id: meetingId,
-            insight_type: 'emotion',
-            content: item.emotion,
-            level: item.level
-          }));
-        case 'painPoints':
-        case 'objections':
-        case 'recommendations':
-        case 'nextActions':
-          return category.data.map((item: string) => ({
-            meeting_id: meetingId,
-            insight_type: category.type.replace(/([A-Z])/g, '_$1').toLowerCase(),
-            content: item
-          }));
-        default:
-          return [];
-      }
-    });
-    
-    if (insightsToInsert.length === 0) return;
-    
-    // Insert in batches of 20 for better performance
-    const BATCH_SIZE = 20;
-    const batches = [];
-    
-    for (let i = 0; i < insightsToInsert.length; i += BATCH_SIZE) {
-      batches.push(insightsToInsert.slice(i, i + BATCH_SIZE));
-    }
-    
-    // Process batches in parallel
-    await Promise.all(batches.map(batch => 
-      supabase.from('meeting_insights').insert(batch)
-    ));
-  };
-
   // Update meeting details
   const updateMeeting = async (meetingId: string, data: Partial<Meeting>) => {
     try {
-      const { error } = await supabase
-        .from('meetings')
-        .update({
-          ...data,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', meetingId);
-      
-      if (error) throw error;
-      
+      await updateMeetingInDb(meetingId, data);
       return true;
     } catch (error) {
       console.error('Error updating meeting:', error);
@@ -263,32 +151,8 @@ export const useMeetingState = () => {
   };
 
   // Get meeting by ID
-  const getMeeting = async (meetingId: string): Promise<{ meeting: Meeting | null, insights: MeetingInsight[] }> => {
-    try {
-      // Run queries in parallel for better performance
-      const [meetingResult, insightsResult] = await Promise.all([
-        supabase
-          .from('meetings')
-          .select('*')
-          .eq('id', meetingId)
-          .single(),
-        supabase
-          .from('meeting_insights')
-          .select('*')
-          .eq('meeting_id', meetingId)
-      ]);
-      
-      if (meetingResult.error) throw meetingResult.error;
-      if (insightsResult.error) throw insightsResult.error;
-      
-      return {
-        meeting: meetingResult.data,
-        insights: insightsResult.data || []
-      };
-    } catch (error) {
-      console.error('Error fetching meeting:', error);
-      return { meeting: null, insights: [] };
-    }
+  const getMeeting = async (meetingId: string) => {
+    return getMeetingWithInsights(meetingId);
   };
   
   return {
