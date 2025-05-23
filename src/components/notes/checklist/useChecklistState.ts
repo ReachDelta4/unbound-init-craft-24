@@ -12,7 +12,10 @@ export const useChecklistState = () => {
     
     if (itemIndex === -1) return;
     
-    updatedChecklist[itemIndex].completed = completed;
+    updatedChecklist[itemIndex] = { 
+      ...updatedChecklist[itemIndex], 
+      completed 
+    };
     
     // Update children if this is a parent
     if (updatedChecklist[itemIndex].children && updatedChecklist[itemIndex].children.length > 0) {
@@ -20,8 +23,14 @@ export const useChecklistState = () => {
         childIds.forEach(childId => {
           const childIndex = updatedChecklist.findIndex(item => item.id === childId);
           if (childIndex !== -1) {
-            updatedChecklist[childIndex].completed = completed;
-            updateChildrenRecursively(updatedChecklist[childIndex].children);
+            updatedChecklist[childIndex] = {
+              ...updatedChecklist[childIndex],
+              completed
+            };
+            
+            if (updatedChecklist[childIndex].children.length > 0) {
+              updateChildrenRecursively(updatedChecklist[childIndex].children);
+            }
           }
         });
       };
@@ -39,7 +48,10 @@ export const useChecklistState = () => {
           .filter(item => item.parentId === parentId)
           .every(item => item.completed);
         
-        updatedChecklist[parentIndex].completed = allChildrenCompleted;
+        updatedChecklist[parentIndex] = {
+          ...updatedChecklist[parentIndex],
+          completed: allChildrenCompleted
+        };
       }
     }
     
@@ -55,7 +67,9 @@ export const useChecklistState = () => {
 
   // Add new checklist item
   const addChecklistItem = (parentId?: string) => {
-    const newId = String(checklist.length > 0 ? Math.max(...checklist.map(item => parseInt(item.id))) + 1 : 1);
+    // Generate a new unique ID without relying on Math.max()
+    const newId = crypto.randomUUID().slice(0, 8);
+    
     const newItem: ChecklistItem = { 
       id: newId, 
       label: "New item", 
@@ -66,53 +80,69 @@ export const useChecklistState = () => {
       isOpen: false
     };
 
-    const updatedChecklist = [...checklist, newItem];
-    
-    // If this is a child, update the parent's children array
+    // If this is a child, add it to parent's children array
     if (parentId) {
-      const parentIndex = updatedChecklist.findIndex(item => item.id === parentId);
-      if (parentIndex !== -1) {
-        updatedChecklist[parentIndex] = {
-          ...updatedChecklist[parentIndex],
-          children: [...updatedChecklist[parentIndex].children, newId],
-          isOpen: true // Ensure parent is open to show the new child
-        };
-      }
+      setChecklist(prevList => {
+        const updatedList = [...prevList];
+        const parentIndex = updatedList.findIndex(item => item.id === parentId);
+        
+        if (parentIndex !== -1) {
+          // Update parent to include new child and ensure it's open
+          updatedList[parentIndex] = {
+            ...updatedList[parentIndex],
+            children: [...updatedList[parentIndex].children, newId],
+            isOpen: true // Open parent to show new child
+          };
+        }
+        
+        // Add the new item to the list
+        return [...updatedList, newItem];
+      });
+    } else {
+      // Add as a top-level item
+      setChecklist(prevList => [...prevList, newItem]);
     }
-    
-    setChecklist(updatedChecklist);
   };
 
   // Delete checklist item
   const deleteChecklistItem = (id: string) => {
+    // First find the item to get its parent info
     const itemToDelete = checklist.find(item => item.id === id);
     if (!itemToDelete) return;
 
-    // First, handle the parent-child relationship
-    if (itemToDelete.parentId) {
-      // If it's a child, remove it from parent's children array
-      setChecklist(checklist.map(item => 
-        item.id === itemToDelete.parentId 
-          ? { ...item, children: item.children.filter(childId => childId !== id) } 
-          : item
-      ));
-    }
-
-    // Then remove the item and all its children
-    const idsToRemove = new Set<string>([id]);
-    
-    // Recursively find all children to remove
-    const findChildrenToRemove = (parentId: string) => {
-      checklist.forEach(item => {
-        if (item.parentId === parentId) {
-          idsToRemove.add(item.id);
-          findChildrenToRemove(item.id);
-        }
-      });
-    };
-    
-    findChildrenToRemove(id);
-    setChecklist(checklist.filter(item => !idsToRemove.has(item.id)));
+    setChecklist(prevList => {
+      let updatedList = [...prevList];
+      
+      // If it has a parent, update the parent's children array
+      if (itemToDelete.parentId) {
+        updatedList = updatedList.map(item => 
+          item.id === itemToDelete.parentId
+            ? {
+                ...item,
+                children: item.children.filter(childId => childId !== id)
+              }
+            : item
+        );
+      }
+      
+      // Remove the item and all its children recursively
+      const idsToRemove = new Set<string>([id]);
+      
+      // Find all descendants
+      const findChildrenToRemove = (parentId: string) => {
+        updatedList.forEach(item => {
+          if (item.parentId === parentId) {
+            idsToRemove.add(item.id);
+            findChildrenToRemove(item.id);
+          }
+        });
+      };
+      
+      findChildrenToRemove(id);
+      
+      // Remove all identified items
+      return updatedList.filter(item => !idsToRemove.has(item.id));
+    });
   };
 
   // Move checklist item up or down
@@ -128,7 +158,7 @@ export const useChecklistState = () => {
     
     if ((direction === "up" && siblingIndex === 0) || 
         (direction === "down" && siblingIndex === siblings.length - 1)) {
-      return;
+      return; // Already at the edge, can't move further
     }
 
     // Find the sibling to swap with
@@ -147,16 +177,20 @@ export const useChecklistState = () => {
 
   // Edit checklist item label
   const startEditingChecklistItem = (id: string) => {
-    setChecklist(checklist.map(item => 
-      item.id === id ? { ...item, isEditing: true } : item
-    ));
+    setChecklist(prevList => 
+      prevList.map(item => 
+        item.id === id ? { ...item, isEditing: true } : item
+      )
+    );
   };
 
   // Save checklist item label
   const saveChecklistItemLabel = (id: string, label: string) => {
-    setChecklist(checklist.map(item => 
-      item.id === id ? { ...item, label, isEditing: false } : item
-    ));
+    setChecklist(prevList => 
+      prevList.map(item => 
+        item.id === id ? { ...item, label, isEditing: false } : item
+      )
+    );
   };
 
   return {

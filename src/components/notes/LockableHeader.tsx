@@ -2,7 +2,6 @@
 import React from "react";
 import { Lock, Unlock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 
 interface LockableHeaderProps {
@@ -28,7 +27,10 @@ const LockableHeader = ({
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={onAddItem} 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onAddItem) onAddItem();
+            }} 
             title="Add item"
             disabled={isLocked}
           >
@@ -38,7 +40,10 @@ const LockableHeader = ({
         <Button 
           variant="ghost"
           size="sm" 
-          onClick={onToggleLock}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleLock();
+          }}
           title={isLocked ? "Unlock section" : "Lock section"}
           className="h-8 w-8 p-0 hover:bg-muted"
           aria-label={isLocked ? "Unlock section" : "Lock section"}

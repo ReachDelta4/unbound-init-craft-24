@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -51,7 +52,7 @@ const ChecklistPanel = () => {
   // Save checklist to database when it changes
   useEffect(() => {
     const saveChecklistToDatabase = async () => {
-      if (initialLoadDone && checklist.length > 0) {
+      if (initialLoadDone) {
         try {
           await saveNote('checklist', checklist, isLocked);
         } catch (error) {
@@ -81,7 +82,6 @@ const ChecklistPanel = () => {
       });
     } catch (error) {
       console.error('Error toggling lock:', error);
-      setIsLocked(!isLocked); // Revert on error
       toast({
         title: "Failed to toggle lock",
         description: "There was an error updating the lock state.",
@@ -119,7 +119,7 @@ const ChecklistPanel = () => {
           onStartEditing={startEditingChecklistItem}
           onSaveLabel={saveChecklistItemLabel}
           disabled={isLocked}
-          allItems={checklist} // Pass the entire checklist for recursive rendering
+          allItems={checklist}
         />
       );
     });

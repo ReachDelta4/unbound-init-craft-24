@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import LockableHeader from "./LockableHeader";
 import { useNotesState } from "@/hooks/use-notes-state";
+import { useToast } from "@/hooks/use-toast";
 
 interface Question {
   id: number;
@@ -28,8 +29,10 @@ const QuestionsPanel = () => {
     notes,
     isLoading
   } = useNotesState();
-
-  const isLocked = isNoteLocked('questions');
+  
+  const { toast } = useToast();
+  const [isLocked, setIsLocked] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Load questions from database if they exist
   useEffect(() => {
@@ -38,15 +41,33 @@ const QuestionsPanel = () => {
       if (questionsNote && questionsNote.content) {
         setQuestions(questionsNote.content);
       }
+      
+      // Update local lock state
+      const locked = isNoteLocked('questions');
+      setIsLocked(locked);
+      setInitialLoadDone(true);
     }
-  }, [notes, isLoading]);
+  }, [notes, isLoading, isNoteLocked]);
 
   // Save questions to database when they change
   useEffect(() => {
-    if (questions.length > 0) {
-      saveNote('questions', questions, isLocked);
-    }
-  }, [questions, isLocked, saveNote]);
+    const saveQuestionsToDatabase = async () => {
+      if (initialLoadDone) {
+        try {
+          await saveNote('questions', questions, isLocked);
+        } catch (error) {
+          console.error('Error saving questions:', error);
+          toast({
+            title: "Failed to save questions",
+            description: "There was an error saving your questions.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    
+    saveQuestionsToDatabase();
+  }, [questions, isLocked, saveNote, toast, initialLoadDone]);
 
   // Add new question
   const addQuestion = () => {
@@ -82,8 +103,23 @@ const QuestionsPanel = () => {
   };
 
   const handleToggleLock = async () => {
-    const newLockState = await toggleNoteLock('questions');
-    setIsLocked(newLockState);
+    try {
+      const newLockState = await toggleNoteLock('questions');
+      setIsLocked(newLockState);
+      toast({
+        title: newLockState ? "Questions locked" : "Questions unlocked",
+        description: newLockState 
+          ? "The questions will be preserved for future calls." 
+          : "The questions will be reset for new calls.",
+      });
+    } catch (error) {
+      console.error('Error toggling lock:', error);
+      toast({
+        title: "Failed to toggle lock",
+        description: "There was an error updating the lock state.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -126,7 +162,10 @@ const QuestionsPanel = () => {
                 variant="ghost" 
                 size="icon" 
                 className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive" 
-                onClick={() => deleteQuestion(question.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteQuestion(question.id);
+                }}
               >
                 <Trash2 size={14} />
               </Button>

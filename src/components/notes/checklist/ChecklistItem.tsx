@@ -20,7 +20,7 @@ interface ChecklistItemProps {
   onSaveLabel: (id: string, label: string) => void;
   level?: number;
   disabled?: boolean;
-  allItems?: ChecklistItemType[]; // Pass all items to allow recursive rendering
+  allItems?: ChecklistItemType[]; 
 }
 
 const ChecklistItem = ({
@@ -35,7 +35,7 @@ const ChecklistItem = ({
   onSaveLabel,
   level = 0,
   disabled = false,
-  allItems = [] // Default to empty array
+  allItems = []
 }: ChecklistItemProps) => {
   const [isEditingLabel, setIsEditingLabel] = useState(item.isEditing || false);
   const [editedLabel, setEditedLabel] = useState(item.label);
@@ -48,6 +48,13 @@ const ChecklistItem = ({
     }
   }, [isEditingLabel]);
 
+  // Effect to update editing state when item prop changes
+  useEffect(() => {
+    if (item.isEditing) {
+      setIsEditingLabel(true);
+    }
+  }, [item.isEditing]);
+
   // Handle saving the label
   const handleSaveLabel = () => {
     if (editedLabel.trim()) {
@@ -59,8 +66,12 @@ const ChecklistItem = ({
   // Handle key down events for the input
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
       handleSaveLabel();
     } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
       setEditedLabel(item.label); // Reset to original
       setIsEditingLabel(false);
     }
@@ -68,16 +79,16 @@ const ChecklistItem = ({
 
   // Handle clicking on the label area (but not the checkbox)
   const handleLabelClick = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    if (!disabled) {
+    if (!disabled && !isEditingLabel) {
       onStartEditing(item.id);
       setIsEditingLabel(true);
     }
   };
 
   // Handle checkbox change separately to prevent propagation
-  const handleCheckboxChange = (e: React.MouseEvent, checked: boolean) => {
-    e.stopPropagation();
+  const handleCheckboxChange = (checked: boolean) => {
     if (!disabled) {
       onToggleComplete(item.id, checked);
     }
@@ -85,6 +96,7 @@ const ChecklistItem = ({
 
   // Handle adding a subtask
   const handleAddSubtask = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     if (!disabled) {
       onAddItem(item.id);
@@ -105,6 +117,7 @@ const ChecklistItem = ({
               size="icon"
               className="h-5 w-5 p-0"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 if (!disabled) onToggleOpen(item.id);
               }}
@@ -140,6 +153,7 @@ const ChecklistItem = ({
                 onBlur={handleSaveLabel}
                 onKeyDown={handleKeyDown}
                 className="h-7 py-1"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
           ) : (
@@ -178,16 +192,25 @@ const ChecklistItem = ({
                 <DropdownMenuContent align="end">
                   {onMoveItem && (
                     <>
-                      <DropdownMenuItem onClick={() => onMoveItem(item.id, "up")}>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        onMoveItem(item.id, "up");
+                      }}>
                         Move up
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onMoveItem(item.id, "down")}>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        onMoveItem(item.id, "down");
+                      }}>
                         Move down
                       </DropdownMenuItem>
                     </>
                   )}
                   <DropdownMenuItem 
-                    onClick={() => onDeleteItem(item.id)} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteItem(item.id);
+                    }} 
                     className="text-destructive"
                   >
                     Delete
@@ -206,7 +229,7 @@ const ChecklistItem = ({
             <ChecklistItem
               key={childItem.id}
               item={childItem}
-              childItems={allItems.filter(item => item.parentId === childItem.id)}
+              childItems={allItems ? allItems.filter(item => item.parentId === childItem.id) : []}
               onToggleComplete={onToggleComplete}
               onToggleOpen={onToggleOpen}
               onAddItem={onAddItem}
@@ -216,7 +239,7 @@ const ChecklistItem = ({
               onSaveLabel={onSaveLabel}
               level={level + 1}
               disabled={disabled}
-              allItems={allItems} // Pass all items to child components
+              allItems={allItems}
             />
           ))}
         </div>
