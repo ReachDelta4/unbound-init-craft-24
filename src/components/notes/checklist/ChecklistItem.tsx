@@ -19,7 +19,6 @@ interface ChecklistItemProps {
   onStartEditing: (id: string) => void;
   onSaveLabel: (id: string, label: string) => void;
   level?: number;
-  disabled?: boolean;
   allItems?: ChecklistItemType[]; 
 }
 
@@ -34,7 +33,6 @@ const ChecklistItem = ({
   onStartEditing,
   onSaveLabel,
   level = 0,
-  disabled = false,
   allItems = []
 }: ChecklistItemProps) => {
   const [isEditingLabel, setIsEditingLabel] = useState(item.isEditing || false);
@@ -81,7 +79,7 @@ const ChecklistItem = ({
   const handleLabelClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!disabled && !isEditingLabel) {
+    if (!isEditingLabel) {
       onStartEditing(item.id);
       setIsEditingLabel(true);
     }
@@ -89,18 +87,14 @@ const ChecklistItem = ({
 
   // Handle checkbox change separately to prevent propagation
   const handleCheckboxChange = (checked: boolean) => {
-    if (!disabled) {
-      onToggleComplete(item.id, checked);
-    }
+    onToggleComplete(item.id, checked);
   };
 
   // Handle adding a subtask
   const handleAddSubtask = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!disabled) {
-      onAddItem(item.id);
-    }
+    onAddItem(item.id);
   };
 
   const hasChildren = childItems.length > 0;
@@ -119,9 +113,8 @@ const ChecklistItem = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (!disabled) onToggleOpen(item.id);
+                onToggleOpen(item.id);
               }}
-              disabled={disabled}
             >
               {item.isOpen ? (
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -137,14 +130,13 @@ const ChecklistItem = ({
           <Checkbox
             checked={item.completed}
             onCheckedChange={handleCheckboxChange}
-            disabled={disabled}
             className="mt-0.5"
           />
         </div>
 
         {/* Label or input for editing */}
         <div className="flex-grow">
-          {isEditingLabel && !disabled ? (
+          {isEditingLabel ? (
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
@@ -171,54 +163,50 @@ const ChecklistItem = ({
 
         {/* Action buttons */}
         <div className="flex-shrink-0 space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {!disabled && (
-            <>
-              {/* Add subtask button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={handleAddSubtask}
-                title="Add subtask"
-              >
-                <Plus className="h-3.5 w-3.5" />
+          {/* Add subtask button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={handleAddSubtask}
+            title="Add subtask"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6" title="More options">
+                <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" title="More options">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {onMoveItem && (
-                    <>
-                      <DropdownMenuItem onClick={(e) => {
-                        e.stopPropagation();
-                        onMoveItem(item.id, "up");
-                      }}>
-                        Move up
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => {
-                        e.stopPropagation();
-                        onMoveItem(item.id, "down");
-                      }}>
-                        Move down
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  <DropdownMenuItem 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteItem(item.id);
-                    }} 
-                    className="text-destructive"
-                  >
-                    Delete
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {onMoveItem && (
+                <>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveItem(item.id, "up");
+                  }}>
+                    Move up
                   </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          )}
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveItem(item.id, "down");
+                  }}>
+                    Move down
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteItem(item.id);
+                }} 
+                className="text-destructive"
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -229,7 +217,7 @@ const ChecklistItem = ({
             <ChecklistItem
               key={childItem.id}
               item={childItem}
-              childItems={allItems ? allItems.filter(item => item.parentId === childItem.id) : []}
+              childItems={allItems.filter(item => item.parentId === childItem.id)}
               onToggleComplete={onToggleComplete}
               onToggleOpen={onToggleOpen}
               onAddItem={onAddItem}
@@ -238,7 +226,6 @@ const ChecklistItem = ({
               onStartEditing={onStartEditing}
               onSaveLabel={onSaveLabel}
               level={level + 1}
-              disabled={disabled}
               allItems={allItems}
             />
           ))}

@@ -24,14 +24,11 @@ const QuestionsPanel = () => {
 
   const {
     saveNote,
-    isNoteLocked,
-    toggleNoteLock,
     notes,
     isLoading
   } = useNotesState();
   
   const { toast } = useToast();
-  const [isLocked, setIsLocked] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Load questions from database if they exist
@@ -41,20 +38,16 @@ const QuestionsPanel = () => {
       if (questionsNote && questionsNote.content) {
         setQuestions(questionsNote.content);
       }
-      
-      // Update local lock state
-      const locked = isNoteLocked('questions');
-      setIsLocked(locked);
       setInitialLoadDone(true);
     }
-  }, [notes, isLoading, isNoteLocked]);
+  }, [notes, isLoading]);
 
   // Save questions to database when they change
   useEffect(() => {
     const saveQuestionsToDatabase = async () => {
       if (initialLoadDone) {
         try {
-          await saveNote('questions', questions, isLocked);
+          await saveNote('questions', questions);
         } catch (error) {
           console.error('Error saving questions:', error);
           toast({
@@ -67,27 +60,21 @@ const QuestionsPanel = () => {
     };
     
     saveQuestionsToDatabase();
-  }, [questions, isLocked, saveNote, toast, initialLoadDone]);
+  }, [questions, saveNote, toast, initialLoadDone]);
 
   // Add new question
   const addQuestion = () => {
-    if (isLocked) return;
-    
     const newId = questions.length > 0 ? Math.max(...questions.map(q => q.id)) + 1 : 1;
     setQuestions([...questions, { id: newId, text: "New question", isEditing: true }]);
   };
 
   // Delete question
   const deleteQuestion = (id: number) => {
-    if (isLocked) return;
-    
     setQuestions(questions.filter(question => question.id !== id));
   };
 
   // Edit question
   const startEditingQuestion = (id: number) => {
-    if (isLocked) return;
-    
     setQuestions(questions.map(question => 
       question.id === id ? { ...question, isEditing: true } : question
     ));
@@ -95,39 +82,15 @@ const QuestionsPanel = () => {
 
   // Save question
   const saveQuestionText = (id: number, text: string) => {
-    if (isLocked) return;
-    
     setQuestions(questions.map(question => 
       question.id === id ? { ...question, text, isEditing: false } : question
     ));
-  };
-
-  const handleToggleLock = async () => {
-    try {
-      const newLockState = await toggleNoteLock('questions');
-      setIsLocked(newLockState);
-      toast({
-        title: newLockState ? "Questions locked" : "Questions unlocked",
-        description: newLockState 
-          ? "The questions will be preserved for future calls." 
-          : "The questions will be reset for new calls.",
-      });
-    } catch (error) {
-      console.error('Error toggling lock:', error);
-      toast({
-        title: "Failed to toggle lock",
-        description: "There was an error updating the lock state.",
-        variant: "destructive",
-      });
-    }
   };
 
   return (
     <div className="bg-muted rounded-lg p-4">
       <LockableHeader
         title="Key Questions to Ask"
-        isLocked={isLocked}
-        onToggleLock={handleToggleLock}
         onAddItem={addQuestion}
         showAddButton={true}
       />
@@ -136,7 +99,7 @@ const QuestionsPanel = () => {
           <div key={question.id} className="flex items-start group">
             <div className="ml-1 mr-2 mt-1 text-muted-foreground">•</div>
             <div className="flex-grow">
-              {question.isEditing && !isLocked ? (
+              {question.isEditing ? (
                 <Input 
                   defaultValue={question.text}
                   className="text-sm"
@@ -150,26 +113,24 @@ const QuestionsPanel = () => {
                 />
               ) : (
                 <p 
-                  className={`text-sm ${!isLocked ? "cursor-text" : ""}`}
-                  onClick={() => !isLocked && startEditingQuestion(question.id)}
+                  className="text-sm cursor-text"
+                  onClick={() => startEditingQuestion(question.id)}
                 >
                   {question.text}
                 </p>
               )}
             </div>
-            {!isLocked && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteQuestion(question.id);
-                }}
-              >
-                <Trash2 size={14} />
-              </Button>
-            )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive" 
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteQuestion(question.id);
+              }}
+            >
+              <Trash2 size={14} />
+            </Button>
           </div>
         ))}
       </div>

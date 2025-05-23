@@ -6,7 +6,6 @@ import { useChecklistState } from "./checklist/useChecklistState";
 import ChecklistItem from "./checklist/ChecklistItem";
 import LockableHeader from "./LockableHeader";
 import { useNotesState } from "@/hooks/use-notes-state";
-import { ChecklistItem as ChecklistItemType } from "./checklist/types";
 import { useToast } from "@/hooks/use-toast";
 
 const ChecklistPanel = () => {
@@ -22,9 +21,8 @@ const ChecklistPanel = () => {
     saveChecklistItemLabel
   } = useChecklistState();
 
-  const { toggleNoteLock, saveNote, notes, isLoading, isNoteLocked } = useNotesState();
+  const { saveNote, notes, isLoading } = useNotesState();
   const { toast } = useToast();
-  const [isLocked, setIsLocked] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Load checklist from database if it exists
@@ -41,20 +39,16 @@ const ChecklistPanel = () => {
           console.error('Error setting checklist data:', error);
         }
       }
-
-      // Update local lock state
-      const locked = isNoteLocked('checklist');
-      setIsLocked(locked);
       setInitialLoadDone(true);
     }
-  }, [notes, isLoading, setChecklist, isNoteLocked]);
+  }, [notes, isLoading, setChecklist]);
 
   // Save checklist to database when it changes
   useEffect(() => {
     const saveChecklistToDatabase = async () => {
       if (initialLoadDone) {
         try {
-          await saveNote('checklist', checklist, isLocked);
+          await saveNote('checklist', checklist);
         } catch (error) {
           console.error('Error saving checklist:', error);
           toast({
@@ -67,34 +61,11 @@ const ChecklistPanel = () => {
     };
 
     saveChecklistToDatabase();
-  }, [checklist, isLocked, saveNote, toast, initialLoadDone]);
-
-  // Handle toggling lock
-  const handleToggleLock = async () => {
-    try {
-      const newLockState = await toggleNoteLock('checklist');
-      setIsLocked(newLockState);
-      toast({
-        title: newLockState ? "Checklist locked" : "Checklist unlocked",
-        description: newLockState 
-          ? "The checklist will be preserved for future calls." 
-          : "The checklist will be reset for new calls.",
-      });
-    } catch (error) {
-      console.error('Error toggling lock:', error);
-      toast({
-        title: "Failed to toggle lock",
-        description: "There was an error updating the lock state.",
-        variant: "destructive",
-      });
-    }
-  };
+  }, [checklist, saveNote, toast, initialLoadDone]);
 
   // Handle adding a new checklist item
   const handleAddItem = () => {
-    if (!isLocked) {
-      addChecklistItem();
-    }
+    addChecklistItem();
   };
 
   // Render checklist items (recursively for better organization)
@@ -118,7 +89,6 @@ const ChecklistPanel = () => {
           onMoveItem={moveChecklistItem}
           onStartEditing={startEditingChecklistItem}
           onSaveLabel={saveChecklistItemLabel}
-          disabled={isLocked}
           allItems={checklist}
         />
       );
@@ -129,14 +99,12 @@ const ChecklistPanel = () => {
     <div className="bg-muted rounded-lg p-4 mb-4">
       <LockableHeader
         title="Call Structure"
-        isLocked={isLocked}
-        onToggleLock={handleToggleLock}
         onAddItem={handleAddItem}
-        showAddButton={!isLocked}
+        showAddButton={true}
       />
       <div className="space-y-4 group">
         {renderChecklistItems()}
-        {!isLocked && checklist.length === 0 && (
+        {checklist.length === 0 && (
           <div className="flex justify-center pt-2">
             <Button
               variant="outline"

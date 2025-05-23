@@ -15,7 +15,7 @@ interface NotesPanelProps {
 const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
   const { resetNotes } = useNotesState();
   
-  // Reset unlocked notes when call starts
+  // Reset notes when call starts
   React.useEffect(() => {
     if (isCallActive) {
       resetNotes();

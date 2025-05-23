@@ -67,7 +67,7 @@ export const useChecklistState = () => {
 
   // Add new checklist item
   const addChecklistItem = (parentId?: string) => {
-    // Generate a new unique ID without relying on Math.max()
+    // Generate a new unique ID
     const newId = crypto.randomUUID().slice(0, 8);
     
     const newItem: ChecklistItem = { 
@@ -106,7 +106,7 @@ export const useChecklistState = () => {
 
   // Delete checklist item
   const deleteChecklistItem = (id: string) => {
-    // First find the item to get its parent info
+    // Find the item to get its parent info
     const itemToDelete = checklist.find(item => item.id === id);
     if (!itemToDelete) return;
 
