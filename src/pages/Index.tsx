@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MeetingControls from "@/components/MeetingControls";
 import MeetingEndDialog from "@/components/MeetingEndDialog";
@@ -36,8 +35,8 @@ const Index = () => {
   const { saveNotesToMeeting, isSaving: isSavingNotes } = useNotesState();
   const { insights, transcript, generateSummary } = useSampleData();
 
-  // Auto save data periodically during active calls
-  const [autoSavedData, setAutoSavedData] = useState({
+  // Auto save data periodically during active calls (using a ref to avoid dependency issues)
+  const autoSaveRef = useRef({
     transcript: "",
     summary: "",
     insights: [] as any[]
@@ -50,14 +49,27 @@ const Index = () => {
     }
   }, [user, navigate]);
 
-  // Implement auto-saving during active calls - more efficient
+  // Implement auto-saving during active calls - more efficient with useRef
   useEffect(() => {
     let autoSaveInterval: NodeJS.Timeout;
     
     if (isCallActive && activeMeeting) {
+      // Update the ref value immediately (doesn't trigger re-render)
+      autoSaveRef.current = {
+        transcript: transcript,
+        summary: generateSummary(),
+        insights: [
+          { type: 'emotions', data: insights.emotions },
+          { type: 'painPoints', data: insights.painPoints },
+          { type: 'objections', data: insights.objections },
+          { type: 'recommendations', data: insights.recommendations },
+          { type: 'nextActions', data: insights.nextActions }
+        ]
+      };
+      
       autoSaveInterval = setInterval(() => {
-        // Update auto-saved data
-        setAutoSavedData({
+        // No need to update state, just keep ref updated with latest data
+        autoSaveRef.current = {
           transcript: transcript,
           summary: generateSummary(),
           insights: [
@@ -67,7 +79,7 @@ const Index = () => {
             { type: 'recommendations', data: insights.recommendations },
             { type: 'nextActions', data: insights.nextActions }
           ]
-        });
+        };
       }, 30000); // Auto-save every 30 seconds
     }
     
@@ -100,13 +112,14 @@ const Index = () => {
     });
   }, [callType, user, startMeeting, toast, activeMeeting]);
 
-  // Optimized end call handling
+  // Optimized end call handling with proper button state
   const handleEndCall = useCallback(() => {
+    // Show the dialog immediately for better UX
     setIsCallActive(false);
     setShowMeetingDialog(true);
   }, []);
 
-  // Optimized meeting save with progress
+  // Optimized meeting save with proper progress tracking and timeouts
   const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string) => {
     if (!activeMeeting && !user) return;
     
@@ -120,8 +133,14 @@ const Index = () => {
         { type: 'nextActions', data: insights.nextActions }
       ];
       
-      // Update meeting and save insights - endpoint handles parallelization
-      const meetingId = await endMeeting(transcript, summary, insightsForSaving);
+      // Update meeting and save insights - true parallelization
+      const meetingId = await Promise.race([
+        endMeeting(transcript, summary, insightsForSaving),
+        // Add timeout protection (15s)
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('Meeting save timeout')), 15000)
+        )
+      ]);
       
       if (meetingId) {
         // Run these operations in parallel for better performance
@@ -134,10 +153,17 @@ const Index = () => {
           ])
         ]);
         
+        // Reset UI state
         setShowMeetingDialog(false);
         setCallDuration(0);
         setCallType(null);
-        setAutoSavedData({ transcript: "", summary: "", insights: [] });
+        autoSaveRef.current = { transcript: "", summary: "", insights: [] };
+        
+        // Show success toast
+        toast({
+          title: "Meeting saved",
+          description: "Your meeting has been successfully saved.",
+        });
       }
     } catch (error) {
       console.error("Error saving meeting:", error);
@@ -184,6 +210,7 @@ const Index = () => {
           onStartCall={handleStartCall}
           onEndCall={handleEndCall}
           isLoading={isCreatingMeeting}
+          isSaving={isSavingMeeting}
         />
       </div>
 

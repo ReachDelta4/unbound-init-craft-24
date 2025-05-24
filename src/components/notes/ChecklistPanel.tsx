@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useChecklistState } from "./checklist/useChecklistState";
@@ -7,6 +7,8 @@ import ChecklistItem from "./checklist/ChecklistItem";
 import LockableHeader from "./LockableHeader";
 import { useNotesState } from "@/hooks/use-notes-state";
 import { useToast } from "@/hooks/use-toast";
+
+const SAVE_DEBOUNCE_TIME = 1000; // 1 second debounce for saving
 
 const ChecklistPanel = () => {
   const { 
@@ -18,12 +20,15 @@ const ChecklistPanel = () => {
     deleteChecklistItem, 
     moveChecklistItem, 
     startEditingChecklistItem, 
-    saveChecklistItemLabel
+    saveChecklistItemLabel,
+    hasPendingChanges,
+    resetPendingChanges
   } = useChecklistState();
 
   const { saveNote, notes, isLoading } = useNotesState();
   const { toast } = useToast();
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load checklist from database if it exists
   useEffect(() => {
@@ -43,12 +48,20 @@ const ChecklistPanel = () => {
     }
   }, [notes, isLoading, setChecklist]);
 
-  // Save checklist to database when it changes
+  // Debounced save to prevent frequent DB writes
   useEffect(() => {
-    const saveChecklistToDatabase = async () => {
-      if (initialLoadDone) {
+    // Only set up the timer if we have changes to save and initial load is done
+    if (initialLoadDone && hasPendingChanges()) {
+      // Clear any existing timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      // Set a new timeout for saving
+      saveTimeoutRef.current = setTimeout(async () => {
         try {
           await saveNote('checklist', checklist);
+          resetPendingChanges();
         } catch (error) {
           console.error('Error saving checklist:', error);
           toast({
@@ -57,11 +70,16 @@ const ChecklistPanel = () => {
             variant: "destructive",
           });
         }
+      }, SAVE_DEBOUNCE_TIME);
+    }
+    
+    // Cleanup function
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
       }
     };
-
-    saveChecklistToDatabase();
-  }, [checklist, saveNote, toast, initialLoadDone]);
+  }, [checklist, saveNote, toast, initialLoadDone, hasPendingChanges, resetPendingChanges]);
 
   // Handle adding a new checklist item
   const handleAddItem = () => {

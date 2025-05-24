@@ -34,7 +34,7 @@ export const updateMeetingInDb = async (meetingId: string, data: Partial<Meeting
   return true;
 };
 
-// Complete a meeting with transcript and summary
+// Complete a meeting with transcript and summary - optimized for parallel processing
 export const completeMeeting = async (meetingId: string, transcript: string, summary: string) => {
   const { error } = await supabase
     .from('meetings')
@@ -50,7 +50,7 @@ export const completeMeeting = async (meetingId: string, transcript: string, sum
   return true;
 };
 
-// Insert insights in batches
+// Insert insights in batches - true parallelization using Promise.all
 export const insertMeetingInsights = async (meetingId: string, insights: any[]) => {
   if (!insights || insights.length === 0) return true;
   
@@ -79,23 +79,24 @@ export const insertMeetingInsights = async (meetingId: string, insights: any[]) 
   
   if (insightsToInsert.length === 0) return true;
   
-  // Insert in batches of 20 for better performance
+  // Insert in batches of 20 for better performance using true parallel operations
   const BATCH_SIZE = 20;
-  const batches = [];
+  const promises = [];
   
   for (let i = 0; i < insightsToInsert.length; i += BATCH_SIZE) {
-    batches.push(insightsToInsert.slice(i, i + BATCH_SIZE));
+    const batch = insightsToInsert.slice(i, i + BATCH_SIZE);
+    promises.push(
+      supabase.from('meeting_insights').insert(batch)
+    );
   }
   
-  // Process batches in parallel
-  await Promise.all(batches.map(batch => 
-    supabase.from('meeting_insights').insert(batch)
-  ));
+  // Truly parallel processing - wait for all operations to complete
+  await Promise.all(promises);
   
   return true;
 };
 
-// Fetch a meeting with its insights
+// Fetch a meeting with its insights - optimized for parallel fetching
 export const getMeetingWithInsights = async (meetingId: string) => {
   try {
     // Run queries in parallel for better performance

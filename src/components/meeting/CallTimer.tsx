@@ -12,6 +12,12 @@ const CallTimer = ({ isActive, onDurationChange, initialDuration = 0 }: CallTime
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Clear any existing timer first to prevent multiple timers
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     if (isActive) {
       timerRef.current = setInterval(() => {
         setCallDuration(prev => {
@@ -20,19 +26,23 @@ const CallTimer = ({ isActive, onDurationChange, initialDuration = 0 }: CallTime
           return newDuration;
         });
       }, 1000);
-    } else {
+    }
+
+    // Cleanup function to ensure timer is cleared
+    return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
     };
   }, [isActive, onDurationChange]);
+
+  // Reset the timer when it becomes inactive
+  useEffect(() => {
+    if (!isActive && callDuration !== initialDuration) {
+      setCallDuration(initialDuration);
+    }
+  }, [isActive, initialDuration, callDuration]);
 
   return null; // This is a logic-only component
 };

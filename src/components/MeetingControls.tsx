@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Play, StopCircle, Mic, Video } from "lucide-react";
+import { Play, StopCircle, Mic, Video, Loader2 } from "lucide-react";
 
 interface MeetingControlsProps {
   isCallActive: boolean;
@@ -18,6 +18,7 @@ interface MeetingControlsProps {
   onStartCall: () => void;
   onEndCall: () => void;
   isLoading?: boolean;
+  isSaving?: boolean;
 }
 
 const MeetingControls = ({
@@ -28,6 +29,7 @@ const MeetingControls = ({
   onStartCall,
   onEndCall,
   isLoading = false,
+  isSaving = false,
 }: MeetingControlsProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -74,10 +76,19 @@ const MeetingControls = ({
           variant="destructive" 
           size="lg"
           className="gap-2"
-          disabled={isLoading}
+          disabled={isSaving}
         >
-          <StopCircle size={18} />
-          End Call
+          {isSaving ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <StopCircle size={18} />
+              End Call
+            </>
+          )}
         </Button>
       ) : (
         <Button 
@@ -87,7 +98,12 @@ const MeetingControls = ({
           disabled={!callType || isLoading}
           className="bg-indigo-600 hover:bg-indigo-700 gap-2"
         >
-          {isLoading ? "Starting..." : (
+          {isLoading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Starting...
+            </>
+          ) : (
             <>
               <Play size={18} />
               Start Call

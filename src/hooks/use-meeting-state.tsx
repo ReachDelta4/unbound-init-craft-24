@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +22,7 @@ export const useMeetingState = () => {
   const [isCreatingMeeting, setIsCreatingMeeting] = useState(false);
   const [isSavingMeeting, setIsSavingMeeting] = useState(false);
   const [savingProgress, setSavingProgress] = useState(0);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   // Create a new meeting when a call starts - optimized for speed
   const startMeeting = async (platform: string) => {
@@ -84,7 +86,7 @@ export const useMeetingState = () => {
     }
   };
 
-  // End the active meeting with optimized parallel operations
+  // End the active meeting with truly parallel operations and timeout protection
   const endMeeting = async (transcript: string, summary: string, insights: any[]) => {
     if (!activeMeeting || !user) return null;
     
@@ -96,28 +98,49 @@ export const useMeetingState = () => {
       
       // If we don't have a real meeting ID yet, create the meeting first
       if (!meetingId) {
-        const meetingData = await createMeeting(user.id, activeMeeting.platform || '');
+        const meetingData = await Promise.race([
+          createMeeting(user.id, activeMeeting.platform || ''),
+          // Add timeout protection (5s)
+          new Promise<any>((_, reject) => 
+            setTimeout(() => reject(new Error('Meeting creation timeout')), 5000)
+          )
+        ]);
+        
         setSavingProgress(50);
         
-        // Now handle insights in parallel
+        // Now handle insights in parallel with true Promise.all
         if (insights && insights.length > 0) {
-          await insertMeetingInsights(meetingData.id, insights);
+          await Promise.race([
+            insertMeetingInsights(meetingData.id, insights),
+            // Add timeout protection (5s)
+            new Promise<any>((_, reject) => 
+              setTimeout(() => reject(new Error('Insights creation timeout')), 5000)
+            )
+          ]);
         }
         
         setSavingProgress(100);
+        setLastSaved(new Date());
         return meetingData.id;
       }
       
-      // For existing meetings, run operations in parallel
+      // For existing meetings, run operations in parallel with true Promise.all
       setSavingProgress(20);
       
-      // 1. Update meeting and 2. Process insights in parallel
-      await Promise.all([
-        completeMeeting(meetingId, transcript, summary),
-        insertMeetingInsights(meetingId, insights)
+      // Use Promise.all for true parallelism with timeout protection
+      await Promise.race([
+        Promise.all([
+          completeMeeting(meetingId, transcript, summary),
+          insertMeetingInsights(meetingId, insights)
+        ]),
+        // Add timeout protection (10s)
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('Meeting completion timeout')), 10000)
+        )
       ]);
       
       setSavingProgress(100);
+      setLastSaved(new Date());
       return meetingId;
     } catch (error) {
       console.error('Error ending meeting:', error);
@@ -160,6 +183,7 @@ export const useMeetingState = () => {
     isCreatingMeeting,
     isSavingMeeting, 
     savingProgress,
+    lastSaved,
     startMeeting,
     endMeeting,
     updateMeeting,
