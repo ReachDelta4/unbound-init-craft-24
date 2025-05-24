@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -11,8 +10,9 @@ import {
   getMeetingWithInsights
 } from "./meetings/meetings-db";
 
+// Fix the TS1205 error by using 'export type'
 export type { Meeting, MeetingInsight } from "./meetings/types";
-export { MeetingNote } from "./meetings/types";
+export type { MeetingNote } from "./meetings/types";
 
 export const useMeetingState = () => {
   const { user } = useAuth();

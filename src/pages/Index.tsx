@@ -1,19 +1,17 @@
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import MeetingControls from "@/components/MeetingControls";
-import TranscriptPanel from "@/components/TranscriptPanel";
-import InsightsPanel from "@/components/InsightsPanel";
-import NotesPanel from "@/components/NotesPanel";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { UserMenu } from "@/components/auth/UserMenu";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import MeetingEndDialog from "@/components/MeetingEndDialog";
 import { useMeetingState } from "@/hooks/use-meeting-state";
 import { useNotesState } from "@/hooks/use-notes-state";
-import MeetingEndDialog from "@/components/MeetingEndDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import MainLayout from "@/components/layout/MainLayout";
+import MeetingWorkspace from "@/components/meeting/MeetingWorkspace";
+import CallTimer from "@/components/meeting/CallTimer";
+import { useSampleData } from "@/hooks/useSampleData";
 
 const Index = () => {
   const { toast } = useToast();
@@ -23,8 +21,8 @@ const Index = () => {
   const [callType, setCallType] = useState<string | null>(null);
   const [callDuration, setCallDuration] = useState(0);
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Hooks
   const { 
     activeMeeting, 
     isCreatingMeeting, 
@@ -36,6 +34,7 @@ const Index = () => {
   } = useMeetingState();
   
   const { saveNotesToMeeting, isSaving: isSavingNotes } = useNotesState();
+  const { insights, transcript, generateSummary } = useSampleData();
 
   // Auto save data periodically during active calls
   const [autoSavedData, setAutoSavedData] = useState({
@@ -51,46 +50,6 @@ const Index = () => {
     }
   }, [user, navigate]);
 
-  // Sample insights for the current call
-  const [currentInsights, setCurrentInsights] = useState({
-    emotions: [
-      { emotion: "Interest", level: 80 },
-      { emotion: "Concern", level: 40 },
-      { emotion: "Enthusiasm", level: 65 },
-      { emotion: "Skepticism", level: 30 },
-    ],
-    painPoints: [
-      "Integration issues between existing tools",
-      "Team communication challenges",
-      "Cost management with current solutions",
-      "Scalability concerns for growing team",
-    ],
-    objections: [
-      "Budget constraints this quarter",
-      "Concerned about implementation time",
-      "Questions about technical support availability",
-    ],
-    recommendations: [
-      "Highlight how our integration reduces total cost of ownership",
-      "Address implementation timeline - emphasize quick onboarding",
-      "Discuss the dedicated support team availability",
-      "Demonstrate scalability features for growing teams",
-    ],
-    nextActions: [
-      "Send pricing proposal by Friday",
-      "Schedule technical demo with their IT team",
-      "Share case studies of similar-sized companies"
-    ]
-  });
-
-  // Sample transcript - this would come from a real transcription service
-  const [currentTranscript, setCurrentTranscript] = useState(
-    "You: Hello, thanks for joining the call today. How are you doing?\n\n" +
-    "Client: I'm doing well, thank you for asking. I'm excited to discuss your product and see if it fits our needs.\n\n" +
-    "You: That's great to hear. I'd love to understand your current challenges and how we might be able to address them.\n\n" +
-    "Client: Well, our main issue is increasing productivity while keeping our costs manageable. Our team is growing but our tools aren't scaling well."
-  );
-
   // Implement auto-saving during active calls - more efficient
   useEffect(() => {
     let autoSaveInterval: NodeJS.Timeout;
@@ -99,14 +58,14 @@ const Index = () => {
       autoSaveInterval = setInterval(() => {
         // Update auto-saved data
         setAutoSavedData({
-          transcript: currentTranscript,
+          transcript: transcript,
           summary: generateSummary(),
           insights: [
-            { type: 'emotions', data: currentInsights.emotions },
-            { type: 'painPoints', data: currentInsights.painPoints },
-            { type: 'objections', data: currentInsights.objections },
-            { type: 'recommendations', data: currentInsights.recommendations },
-            { type: 'nextActions', data: currentInsights.nextActions }
+            { type: 'emotions', data: insights.emotions },
+            { type: 'painPoints', data: insights.painPoints },
+            { type: 'objections', data: insights.objections },
+            { type: 'recommendations', data: insights.recommendations },
+            { type: 'nextActions', data: insights.nextActions }
           ]
         });
       }, 30000); // Auto-save every 30 seconds
@@ -115,7 +74,7 @@ const Index = () => {
     return () => {
       if (autoSaveInterval) clearInterval(autoSaveInterval);
     };
-  }, [isCallActive, activeMeeting, currentTranscript, currentInsights]);
+  }, [isCallActive, activeMeeting, transcript, insights, generateSummary]);
 
   // Optimized version with useCallback
   const handleStartCall = useCallback(async () => {
@@ -123,9 +82,6 @@ const Index = () => {
     
     // Optimistic UI update - immediate feedback
     setIsCallActive(true);
-    timerRef.current = setInterval(() => {
-      setCallDuration(prev => prev + 1);
-    }, 1000);
     
     // Create a new meeting in the database (non-blocking)
     const meetingPromise = startMeeting(callType);
@@ -146,9 +102,6 @@ const Index = () => {
 
   // Optimized end call handling
   const handleEndCall = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
     setIsCallActive(false);
     setShowMeetingDialog(true);
   }, []);
@@ -160,11 +113,11 @@ const Index = () => {
     try {
       // Prepare insights for saving
       const insightsForSaving = [
-        { type: 'emotions', data: currentInsights.emotions },
-        { type: 'painPoints', data: currentInsights.painPoints },
-        { type: 'objections', data: currentInsights.objections },
-        { type: 'recommendations', data: currentInsights.recommendations },
-        { type: 'nextActions', data: currentInsights.nextActions }
+        { type: 'emotions', data: insights.emotions },
+        { type: 'painPoints', data: insights.painPoints },
+        { type: 'objections', data: insights.objections },
+        { type: 'recommendations', data: insights.recommendations },
+        { type: 'nextActions', data: insights.nextActions }
       ];
       
       // Update meeting and save insights - endpoint handles parallelization
@@ -194,12 +147,7 @@ const Index = () => {
         variant: "destructive"
       });
     }
-  }, [activeMeeting, user, currentInsights, endMeeting, updateMeeting, saveNotesToMeeting, toast]);
-
-  // Generate a summary from transcript - in a real app, this would use AI
-  const generateSummary = useCallback(() => {
-    return "The client expressed interest in our solution to help with scaling their team while managing costs. They're experiencing integration issues between their existing tools and have concerns about implementation time and support availability.";
-  }, []);
+  }, [activeMeeting, user, insights, endMeeting, updateMeeting, saveNotesToMeeting, toast]);
 
   if (!user) {
     return (
@@ -212,65 +160,19 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen w-full bg-background text-foreground flex flex-col">
-      <header className="bg-card p-4 border-b border-border flex items-center justify-between">
-        <div className="flex-1">
-          {/* Spacer */}
-        </div>
-        <h1 className="text-xl font-semibold text-center flex-1">Invisible AI Meeting Assistant</h1>
-        <div className="flex-1 flex justify-end items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => navigate("/profile")}
-            className="flex items-center gap-2"
-          >
-            Profile
-          </Button>
-          <ThemeToggle />
-          <UserMenu />
-        </div>
-      </header>
+    <MainLayout>
+      <MeetingWorkspace 
+        isCallActive={isCallActive} 
+        transcript={transcript} 
+        insights={insights}
+      />
 
-      <div className="flex-grow overflow-hidden">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Transcript Panel - Left Side */}
-          <ResizablePanel 
-            defaultSize={30} 
-            minSize={20}
-            className="bg-card p-4"
-          >
-            <TranscriptPanel 
-              isCallActive={isCallActive} 
-              transcript={currentTranscript}
-            />
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          {/* Insights Panel - Center */}
-          <ResizablePanel 
-            defaultSize={40} 
-            minSize={30}
-            className="bg-background p-4"
-          >
-            <InsightsPanel 
-              isCallActive={isCallActive}
-              insights={currentInsights}
-            />
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          {/* Notes Panel - Right Side */}
-          <ResizablePanel 
-            defaultSize={30} 
-            minSize={20}
-            className="bg-card p-4"
-          >
-            <NotesPanel isCallActive={isCallActive} />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
+      {/* Call Timer - invisible component that manages the timer logic */}
+      <CallTimer 
+        isActive={isCallActive}
+        onDurationChange={setCallDuration}
+        initialDuration={callDuration}
+      />
 
       {/* Meeting Controls at Bottom */}
       <div className="bg-card border-t border-border p-4">
@@ -290,18 +192,18 @@ const Index = () => {
         isOpen={showMeetingDialog}
         onClose={() => setShowMeetingDialog(false)}
         onSave={(title, transcript, summary) => handleSaveMeeting(title, transcript, summary)}
-        transcript={currentTranscript}
+        transcript={transcript}
         summary={generateSummary()}
         insights={[
-          { type: 'emotions', data: currentInsights.emotions },
-          { type: 'painPoints', data: currentInsights.painPoints },
-          { type: 'objections', data: currentInsights.objections },
-          { type: 'recommendations', data: currentInsights.recommendations },
-          { type: 'nextActions', data: currentInsights.nextActions }
+          { type: 'emotions', data: insights.emotions },
+          { type: 'painPoints', data: insights.painPoints },
+          { type: 'objections', data: insights.objections },
+          { type: 'recommendations', data: insights.recommendations },
+          { type: 'nextActions', data: insights.nextActions }
         ]}
         saveProgress={savingProgress}
       />
-    </div>
+    </MainLayout>
   );
 };
 
