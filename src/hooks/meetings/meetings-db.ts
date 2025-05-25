@@ -1,9 +1,14 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Meeting, MeetingInsight } from "./types";
 
 // Create a new meeting record
-export const createMeeting = async (userId: string, platform: string) => {
+export const createMeeting = async (
+  userId: string,
+  platform: string,
+  checklist: any[] = [],
+  notes: string = "",
+  questions: any[] = []
+) => {
   const { data, error } = await supabase
     .from('meetings')
     .insert([{
@@ -11,7 +16,10 @@ export const createMeeting = async (userId: string, platform: string) => {
       title: "New Meeting",
       platform,
       date: new Date().toISOString(),
-      status: 'active'
+      status: 'active',
+      checklist,
+      notes,
+      questions
     }])
     .select('*')
     .single();
@@ -122,5 +130,84 @@ export const getMeetingWithInsights = async (meetingId: string) => {
   } catch (error) {
     console.error('Error fetching meeting:', error);
     return { meeting: null, insights: [] };
+  }
+};
+
+// Fetch meetings for a user with their insights
+export const getUserMeetings = async (userId: string) => {
+  try {
+    console.log('[getUserMeetings] Fetching meetings for userId:', userId);
+    // First, fetch all meetings for the user
+    const meetingsResult = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (meetingsResult.error) throw meetingsResult.error;
+    const meetings = meetingsResult.data || [];
+    if (meetings.length === 0) return [];
+
+    // Fetch all insights for these meetings
+    const meetingIds = meetings.map(m => m.id);
+    const insightsResult = await supabase
+      .from('meeting_insights')
+      .select('*')
+      .in('meeting_id', meetingIds);
+
+    if (insightsResult.error) throw insightsResult.error;
+    const insights = insightsResult.data || [];
+
+    // Process insights into a map for easy lookup
+    const insightsMap = new Map();
+    insights.forEach(insight => {
+      if (!insightsMap.has(insight.meeting_id)) {
+        insightsMap.set(insight.meeting_id, {
+          emotions: [],
+          painPoints: [],
+          objections: [],
+          recommendations: [],
+          nextActions: []
+        });
+      }
+      const meetingInsights = insightsMap.get(insight.meeting_id);
+      switch(insight.insight_type) {
+        case 'emotion':
+          meetingInsights.emotions.push({
+            emotion: insight.content,
+            level: insight.level
+          });
+          break;
+        case 'pain_points':
+          meetingInsights.painPoints.push(insight.content);
+          break;
+        case 'objections':
+          meetingInsights.objections.push(insight.content);
+          break;
+        case 'recommendations':
+          meetingInsights.recommendations.push(insight.content);
+          break;
+        case 'next_actions':
+          meetingInsights.nextActions.push(insight.content);
+          break;
+      }
+    });
+
+    // Combine meetings with their insights
+    const result = meetings.map(meeting => ({
+      ...meeting,
+      ...insightsMap.get(meeting.id) || {
+        emotions: [],
+        painPoints: [],
+        objections: [],
+        recommendations: [],
+        nextActions: []
+      }
+    }));
+    console.log('[getUserMeetings] Final result:', result);
+    return result;
+  } catch (error) {
+    console.error('Error fetching meetings:', error);
+    return [];
   }
 };

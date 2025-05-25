@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pencil, CheckSquare } from "lucide-react";
@@ -7,20 +6,16 @@ import ChecklistPanel from "./notes/ChecklistPanel";
 import QuestionsPanel from "./notes/QuestionsPanel";
 import MarkdownEditor from "./notes/MarkdownEditor";
 import { useNotesState } from "@/hooks/use-notes-state";
+import { useMeetingState } from "@/hooks/use-meeting-state";
 
 interface NotesPanelProps {
   isCallActive: boolean;
 }
 
 const NotesPanel = ({ isCallActive }: NotesPanelProps) => {
-  const { resetNotes } = useNotesState();
-  
-  // Reset notes when call starts
-  React.useEffect(() => {
-    if (isCallActive) {
-      resetNotes();
-    }
-  }, [isCallActive, resetNotes]);
+  const { activeMeeting } = useMeetingState();
+  const meetingId = activeMeeting?.id || null;
+  const { resetNotes } = useNotesState(meetingId, activeMeeting);
   
   return (
     <div className="h-full flex flex-col">

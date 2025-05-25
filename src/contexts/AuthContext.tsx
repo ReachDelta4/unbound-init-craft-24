@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +22,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const hasShownSignInToast = useRef(false);
 
   useEffect(() => {
     // Set up auth state listener first
@@ -31,12 +31,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          toast.success("Successfully signed in");
+        if (event === 'SIGNED_IN') {
+          if (!hasShownSignInToast.current) {
+            toast.success("Successfully signed in");
+            hasShownSignInToast.current = true;
+          }
           navigate("/");
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Do not show toast on token refresh
         } else if (event === 'SIGNED_OUT') {
           toast.info("Signed out");
           navigate("/auth");
+          hasShownSignInToast.current = false;
         }
       }
     );

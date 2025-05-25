@@ -1,4 +1,3 @@
-
 export interface Meeting {
   id: string;
   title: string;
@@ -11,6 +10,9 @@ export interface Meeting {
   status: string;
   created_at: string;
   updated_at: string;
+  checklist?: any[];
+  notes?: string;
+  questions?: any[];
 }
 
 export interface MeetingInsight {

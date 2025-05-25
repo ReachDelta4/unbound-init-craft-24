@@ -1,140 +1,102 @@
-
-import React, { useEffect, useState, useRef } from "react";
+import React from "react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { useChecklistState } from "./checklist/useChecklistState";
-import ChecklistItem from "./checklist/ChecklistItem";
+import { Input } from "@/components/ui/input";
 import LockableHeader from "./LockableHeader";
 import { useNotesState } from "@/hooks/use-notes-state";
-import { useToast } from "@/hooks/use-toast";
-
-const SAVE_DEBOUNCE_TIME = 1000; // 1 second debounce for saving
+import { useMeetingState } from "@/hooks/use-meeting-state";
 
 const ChecklistPanel = () => {
-  const { 
-    checklist, 
-    setChecklist,
-    toggleChecklistItem, 
-    toggleItemOpen, 
-    addChecklistItem, 
-    deleteChecklistItem, 
-    moveChecklistItem, 
-    startEditingChecklistItem, 
-    saveChecklistItemLabel,
-    hasPendingChanges,
-    resetPendingChanges
-  } = useChecklistState();
+  const { activeMeeting } = useMeetingState();
+  const meetingId = activeMeeting?.id || null;
+  const { checklist, setChecklist } = useNotesState(meetingId, activeMeeting);
 
-  const { saveNote, notes, isLoading } = useNotesState();
-  const { toast } = useToast();
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Load checklist from database if it exists
-  useEffect(() => {
-    if (!isLoading) {
-      const checklistNote = notes.find(note => note.note_type === 'checklist');
-      if (checklistNote && checklistNote.content) {
-        try {
-          // Ensure content is the expected format
-          if (Array.isArray(checklistNote.content)) {
-            setChecklist(checklistNote.content);
-          }
-        } catch (error) {
-          console.error('Error setting checklist data:', error);
-        }
-      }
-      setInitialLoadDone(true);
-    }
-  }, [notes, isLoading, setChecklist]);
-
-  // Debounced save to prevent frequent DB writes
-  useEffect(() => {
-    // Only set up the timer if we have changes to save and initial load is done
-    if (initialLoadDone && hasPendingChanges()) {
-      // Clear any existing timeout
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      
-      // Set a new timeout for saving
-      saveTimeoutRef.current = setTimeout(async () => {
-        try {
-          await saveNote('checklist', checklist);
-          resetPendingChanges();
-        } catch (error) {
-          console.error('Error saving checklist:', error);
-          toast({
-            title: "Failed to save checklist",
-            description: "There was an error saving your checklist items.",
-            variant: "destructive",
-          });
-        }
-      }, SAVE_DEBOUNCE_TIME);
-    }
-    
-    // Cleanup function
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [checklist, saveNote, toast, initialLoadDone, hasPendingChanges, resetPendingChanges]);
-
-  // Handle adding a new checklist item
+  // Add new checklist item
   const handleAddItem = () => {
-    addChecklistItem();
+    const newId = crypto.randomUUID().slice(0, 8);
+    setChecklist([
+      ...checklist,
+      { id: newId, label: "New item", completed: false, parentId: null, children: [], isEditing: true, isOpen: false },
+    ]);
   };
 
-  // Render checklist items (recursively for better organization)
-  const renderChecklistItems = () => {
-    // First render top level items (no parent)
-    const topLevelItems = checklist.filter(item => !item.parentId);
+  // Delete checklist item
+  const handleDeleteItem = (id: string) => {
+    setChecklist(checklist.filter(item => item.id !== id));
+  };
 
-    return topLevelItems.map(item => {
-      // Get child items for this parent
-      const childItems = checklist.filter(childItem => childItem.parentId === item.id);
+  // Edit checklist item
+  const handleEditItem = (id: string) => {
+    setChecklist(checklist.map(item =>
+      item.id === id ? { ...item, isEditing: true } : item
+    ));
+  };
 
-      return (
-        <ChecklistItem
-          key={item.id}
-          item={item}
-          childItems={childItems}
-          onToggleComplete={toggleChecklistItem}
-          onToggleOpen={toggleItemOpen}
-          onAddItem={addChecklistItem}
-          onDeleteItem={deleteChecklistItem}
-          onMoveItem={moveChecklistItem}
-          onStartEditing={startEditingChecklistItem}
-          onSaveLabel={saveChecklistItemLabel}
-          allItems={checklist}
-        />
-      );
-    });
+  // Save checklist item
+  const handleSaveItem = (id: string, label: string) => {
+    setChecklist(checklist.map(item =>
+      item.id === id ? { ...item, label, isEditing: false } : item
+    ));
+  };
+
+  // Toggle completed
+  const handleToggleCompleted = (id: string) => {
+    setChecklist(checklist.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ));
   };
 
   return (
-    <div className="bg-muted rounded-lg p-4 mb-4">
+    <div className="bg-muted rounded-lg p-4">
       <LockableHeader
-        title="Call Structure"
+        title="Checklist"
         onAddItem={handleAddItem}
         showAddButton={true}
       />
-      <div className="space-y-4 group">
-        {renderChecklistItems()}
-        {checklist.length === 0 && (
-          <div className="flex justify-center pt-2">
+      <div className="space-y-2">
+        {checklist.map((item) => (
+          <div key={item.id} className="flex items-start group">
+            <input
+              type="checkbox"
+              checked={item.completed}
+              onChange={() => handleToggleCompleted(item.id)}
+              className="mr-2 mt-1"
+            />
+            <div className="flex-grow">
+              {item.isEditing ? (
+                <Input
+                  defaultValue={item.label}
+                  className="text-sm"
+                  onBlur={(e) => handleSaveItem(item.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveItem(item.id, e.currentTarget.value);
+                    }
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <p
+                  className="text-sm cursor-text"
+                  onClick={() => handleEditItem(item.id)}
+                >
+                  {item.label}
+                </p>
+              )}
+            </div>
             <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={handleAddItem}
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteItem(item.id);
+              }}
             >
-              <Plus className="mr-1 h-4 w-4" />
-              Add your first checklist item
+              <Trash2 size={14} />
             </Button>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

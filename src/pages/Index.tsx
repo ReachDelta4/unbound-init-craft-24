@@ -11,120 +11,70 @@ import MainLayout from "@/components/layout/MainLayout";
 import MeetingWorkspace from "@/components/meeting/MeetingWorkspace";
 import CallTimer from "@/components/meeting/CallTimer";
 import { useSampleData } from "@/hooks/useSampleData";
+import { useWebRTC } from "@/hooks/useWebRTC";
+import ScreenSharePreview from "@/components/meeting/ScreenSharePreview";
 
 const Index = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [callType, setCallType] = useState<string | null>(null);
-  const [callDuration, setCallDuration] = useState(0);
-  const [showMeetingDialog, setShowMeetingDialog] = useState(false);
-  
-  // Hooks
-  const { 
-    activeMeeting, 
-    isCreatingMeeting, 
+  const {
+    activeMeeting,
+    isCreatingMeeting,
     isSavingMeeting,
     savingProgress,
-    startMeeting, 
+    startMeeting,
     endMeeting,
-    updateMeeting
+    updateMeeting,
+    setActiveMeeting
   } = useMeetingState();
-  
-  const { saveNotesToMeeting, isSaving: isSavingNotes } = useNotesState();
+
+  const { saveNotesToMeeting, isSaving: isSavingNotes, notes, checklist } = useNotesState();
   const { insights, transcript, generateSummary } = useSampleData();
+  const {
+    startScreenShare,
+    stopScreenShare,
+    isScreenSharing,
+    stream,
+    error: webRTCError
+  } = useWebRTC();
 
-  // Auto save data periodically during active calls (using a ref to avoid dependency issues)
-  const autoSaveRef = useRef({
-    transcript: "",
-    summary: "",
-    insights: [] as any[]
-  });
+  const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [uiCallDuration, setUiCallDuration] = useState(0);
 
-  // Redirect to auth page if not logged in
   useEffect(() => {
-    if (!user) {
-      navigate("/auth");
-    }
-  }, [user, navigate]);
-
-  // Implement auto-saving during active calls - more efficient with useRef
-  useEffect(() => {
-    let autoSaveInterval: NodeJS.Timeout;
-    
-    if (isCallActive && activeMeeting) {
-      // Update the ref value immediately (doesn't trigger re-render)
-      autoSaveRef.current = {
-        transcript: transcript,
-        summary: generateSummary(),
-        insights: [
-          { type: 'emotions', data: insights.emotions },
-          { type: 'painPoints', data: insights.painPoints },
-          { type: 'objections', data: insights.objections },
-          { type: 'recommendations', data: insights.recommendations },
-          { type: 'nextActions', data: insights.nextActions }
-        ]
-      };
-      
-      autoSaveInterval = setInterval(() => {
-        // No need to update state, just keep ref updated with latest data
-        autoSaveRef.current = {
-          transcript: transcript,
-          summary: generateSummary(),
-          insights: [
-            { type: 'emotions', data: insights.emotions },
-            { type: 'painPoints', data: insights.painPoints },
-            { type: 'objections', data: insights.objections },
-            { type: 'recommendations', data: insights.recommendations },
-            { type: 'nextActions', data: insights.nextActions }
-          ]
-        };
-      }, 30000); // Auto-save every 30 seconds
-    }
-    
-    return () => {
-      if (autoSaveInterval) clearInterval(autoSaveInterval);
-    };
-  }, [isCallActive, activeMeeting, transcript, insights, generateSummary]);
-
-  // Optimized version with useCallback
-  const handleStartCall = useCallback(async () => {
-    if (!callType || !user) return;
-    
-    // Optimistic UI update - immediate feedback
-    setIsCallActive(true);
-    
-    // Create a new meeting in the database (non-blocking)
-    const meetingPromise = startMeeting(callType);
-    
-    // Don't block UI on database operations
-    meetingPromise.catch(error => {
-      console.error('Error in meeting creation:', error);
-      // Only show error if critical
-      if (!activeMeeting) {
-        toast({
-          title: "Meeting sync issue",
-          description: "We've started your meeting but there might be issues saving it later.",
-          variant: "destructive",
-        });
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (activeMeeting && activeMeeting.status === 'active') {
+        e.preventDefault();
+        e.returnValue = "You have a call in progress. Are you sure you want to leave?";
       }
-    });
-  }, [callType, user, startMeeting, toast, activeMeeting]);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeMeeting]);
 
-  // Optimized end call handling with proper button state
+  const handleStartCall = useCallback(async (callType: string) => {
+    if (!callType || !user) return;
+    try {
+      await startScreenShare();
+      await startMeeting(callType);
+    } catch (error) {
+      console.error('Error starting screen share:', error);
+      toast({
+        title: "Failed to start screen sharing",
+        description: webRTCError || "Please make sure you have granted the necessary permissions.",
+        variant: "destructive",
+      });
+    }
+  }, [user, startMeeting, toast, startScreenShare, webRTCError]);
+
   const handleEndCall = useCallback(() => {
-    // Show the dialog immediately for better UX
-    setIsCallActive(false);
     setShowMeetingDialog(true);
   }, []);
 
-  // Optimized meeting save with proper progress tracking and timeouts
   const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string) => {
     if (!activeMeeting && !user) return;
-    
     try {
-      // Prepare insights for saving
       const insightsForSaving = [
         { type: 'emotions', data: insights.emotions },
         { type: 'painPoints', data: insights.painPoints },
@@ -132,34 +82,14 @@ const Index = () => {
         { type: 'recommendations', data: insights.recommendations },
         { type: 'nextActions', data: insights.nextActions }
       ];
-      
-      // Update meeting and save insights - true parallelization
       const meetingId = await Promise.race([
         endMeeting(transcript, summary, insightsForSaving),
-        // Add timeout protection (15s)
-        new Promise<any>((_, reject) => 
+        new Promise<any>((_, reject) =>
           setTimeout(() => reject(new Error('Meeting save timeout')), 15000)
         )
       ]);
-      
       if (meetingId) {
-        // Run these operations in parallel for better performance
-        await Promise.all([
-          // Update meeting title
-          updateMeeting(meetingId, { title }),
-          // Save notes to meeting
-          saveNotesToMeeting(meetingId, [
-            { type: 'markdown', content: { raw: transcript } }
-          ])
-        ]);
-        
-        // Reset UI state
-        setShowMeetingDialog(false);
-        setCallDuration(0);
-        setCallType(null);
-        autoSaveRef.current = { transcript: "", summary: "", insights: [] };
-        
-        // Show success toast
+        await updateMeeting(meetingId, { title });
         toast({
           title: "Meeting saved",
           description: "Your meeting has been successfully saved.",
@@ -172,8 +102,14 @@ const Index = () => {
         description: "There was a problem saving your meeting data. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      // Always clear state to ensure UI is correct
+      stopScreenShare();
+      setShowMeetingDialog(false);
+      setUiCallDuration(0);
+      setActiveMeeting(null);
     }
-  }, [activeMeeting, user, insights, endMeeting, updateMeeting, saveNotesToMeeting, toast]);
+  }, [activeMeeting, user, insights, endMeeting, updateMeeting, toast, checklist, notes, setActiveMeeting, stopScreenShare]);
 
   if (!user) {
     return (
@@ -185,36 +121,36 @@ const Index = () => {
     );
   }
 
+  const isCallActive = !!(activeMeeting && activeMeeting.status === 'active');
+  const callType = activeMeeting?.platform || null;
+
   return (
     <MainLayout>
-      <MeetingWorkspace 
-        isCallActive={isCallActive} 
-        transcript={transcript} 
+      <MeetingWorkspace
+        isCallActive={isCallActive}
+        transcript={transcript}
         insights={insights}
       />
-
-      {/* Call Timer - invisible component that manages the timer logic */}
-      <CallTimer 
-        isActive={isCallActive}
-        onDurationChange={setCallDuration}
-        initialDuration={callDuration}
+      <ScreenSharePreview
+        stream={stream}
+        isActive={isScreenSharing}
       />
-
-      {/* Meeting Controls at Bottom */}
+      <CallTimer
+        isActive={isCallActive}
+        onDurationChange={setUiCallDuration}
+      />
       <div className="bg-card border-t border-border p-4">
-        <MeetingControls 
+        <MeetingControls
           isCallActive={isCallActive}
           callType={callType}
-          callDuration={callDuration}
-          onCallTypeChange={setCallType}
-          onStartCall={handleStartCall}
+          callDuration={uiCallDuration}
+          onCallTypeChange={handleStartCall}
+          onStartCall={() => handleStartCall(callType || "video")}
           onEndCall={handleEndCall}
           isLoading={isCreatingMeeting}
           isSaving={isSavingMeeting}
         />
       </div>
-
-      {/* Meeting End Dialog */}
       <MeetingEndDialog
         isOpen={showMeetingDialog}
         onClose={() => setShowMeetingDialog(false)}

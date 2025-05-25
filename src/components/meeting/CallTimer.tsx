@@ -1,50 +1,40 @@
-
-import React, { useRef, useEffect, useState } from "react";
+import React, { useEffect, useRef } from "react";
+import { useMeetingState } from "@/hooks/use-meeting-state";
 
 interface CallTimerProps {
   isActive: boolean;
   onDurationChange: (duration: number) => void;
-  initialDuration?: number;
 }
 
-const CallTimer = ({ isActive, onDurationChange, initialDuration = 0 }: CallTimerProps) => {
-  const [callDuration, setCallDuration] = useState(initialDuration);
+const CallTimer = ({ isActive, onDurationChange }: CallTimerProps) => {
+  const { callStartTime } = useMeetingState();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Clear any existing timer first to prevent multiple timers
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+    if (!isActive || !callStartTime) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      onDurationChange(0);
+      return;
     }
-
-    if (isActive) {
-      timerRef.current = setInterval(() => {
-        setCallDuration(prev => {
-          const newDuration = prev + 1;
-          onDurationChange(newDuration);
-          return newDuration;
-        });
-      }, 1000);
-    }
-
-    // Cleanup function to ensure timer is cleared
+    // Update every second
+    timerRef.current = setInterval(() => {
+      const duration = Math.floor((Date.now() - callStartTime) / 1000);
+      onDurationChange(duration);
+    }, 1000);
+    // Initial call
+    onDurationChange(Math.floor((Date.now() - callStartTime) / 1000));
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
     };
-  }, [isActive, onDurationChange]);
+  }, [isActive, callStartTime, onDurationChange]);
 
-  // Reset the timer when it becomes inactive
-  useEffect(() => {
-    if (!isActive && callDuration !== initialDuration) {
-      setCallDuration(initialDuration);
-    }
-  }, [isActive, initialDuration, callDuration]);
-
-  return null; // This is a logic-only component
+  return null;
 };
 
 export default CallTimer;

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Note, NotesToSave } from "./types";
 
@@ -137,5 +136,20 @@ export const getMeetingNotesFromDb = async (meetingId: string) => {
   } catch (error) {
     console.error('Error in getMeetingNotesFromDb:', error);
     throw error;
+  }
+};
+
+// Delete orphan notes for a user
+export const deleteOrphanNotesForUser = async (userId: string) => {
+  try {
+    await supabase
+      .from('meeting_notes')
+      .delete()
+      .eq('user_id', userId)
+      .is('meeting_id', null);
+    return true;
+  } catch (error) {
+    console.error('Error deleting orphan notes:', error);
+    return false;
   }
 };

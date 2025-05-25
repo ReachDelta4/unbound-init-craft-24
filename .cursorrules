@@ -1,0 +1,89 @@
+# Project Overview
+This project aims to deliver clean, maintainable, and scalable code for a software application. The goal is to ensure consistency, readability, and collaboration across the team while leveraging AI assistance for efficient development.
+
+# General Coding Standards
+- Write clear, concise, and self-documenting code.
+- Use consistent naming conventions (e.g., descriptive variable and function names).
+- Prefer small, single-responsibility functions and modules.
+- Follow the style guide agreed upon by the team (e.g., indentation, spacing).
+- Avoid code duplication; reuse shared logic where possible.
+- Prioritize accessibility and usability in user-facing features.
+
+# File and Directory Structure
+- Organize files logically with clear, descriptive names.
+- Group related functionality into directories (e.g., components, utilities).
+- Keep directory names lowercase with dashes for multi-word names (e.g., `user-auth`).
+- Include a `README.md` in major directories to explain their purpose.
+
+# Code Style
+- Use consistent formatting across the codebase (e.g., spaces vs. tabs).
+- Write modular code with clear separation of concerns.
+- Avoid overly complex logic; break it into smaller, testable units.
+- Use comments to explain non-obvious logic or decisions.
+- Prefer configuration files for reusable settings over hardcoding values.
+
+# Error Handling
+- Implement robust error handling for all critical operations.
+- Provide clear, user-friendly error messages.
+- Log errors with sufficient context for debugging.
+- Validate all inputs before processing to prevent errors or security issues.
+- Use early returns to reduce nested code.
+
+# Documentation
+- Document public APIs, functions, and modules with clear comments.
+- Maintain a project-level `README.md` with setup, usage, and contribution guidelines.
+- Include inline comments for complex logic or workarounds.
+- Update documentation when making significant changes.
+
+# Performance
+- Optimize code for reasonable performance without sacrificing readability.
+- Avoid unnecessary computations or redundant operations.
+- Cache results of expensive operations when appropriate.
+- Profile and test performance for critical paths.
+
+# Security
+- Validate and sanitize all user inputs to prevent injection attacks.
+- Use secure communication protocols (e.g., HTTPS) for external requests.
+- Follow the principle of least privilege for permissions and access.
+- Keep dependencies up-to-date to avoid known vulnerabilities.
+
+# Testing
+- Write tests for critical functionality to ensure reliability.
+- Aim for high test coverage on core logic and user-facing features.
+- Use automated tests (e.g., unit, integration) to catch regressions.
+- Run tests before committing changes to the codebase.
+
+# AI Behavior
+- Analyze the context of the task before suggesting changes.
+- Provide minimal, targeted modifications to existing code.
+- Do not reformat code unless explicitly requested.
+- Preserve the project’s structure and conventions.
+- Suggest modern, idiomatic patterns for the language being used.
+- Ask for clarification if the task is ambiguous or unclear.
+
+# Commit Hygiene
+- Write clear, descriptive commit messages (e.g., “Add user login feature”).
+- Keep commits small and focused on a single change.
+- Avoid committing temporary or generated files.
+- Run linting and tests before committing.
+
+# Collaboration
+- Follow team-agreed coding standards and conventions.
+- Communicate changes clearly in pull requests or commits.
+- Review code changes thoughtfully, focusing on clarity and correctness.
+- Respect existing code patterns unless refactoring is approved.
+
+# Example Function
+When writing a function, follow this structure:
+```plaintext
+// Brief description of the function's purpose
+function calculateTotalPrice(items, discount) {
+  // Validate inputs
+  if (!Array.isArray(items) || typeof discount !== 'number') {
+    throw new Error('Invalid input: items must be an array, discount must be a number');
+  }
+
+  // Calculate total with discount
+  const total = items.reduce((sum, item) => sum + item.price, 0);
+  return total * (1 - discount);
+}

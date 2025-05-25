@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +9,8 @@ import Index from "./pages/Index";
 import AuthPage from "./pages/auth/AuthPage";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
+import { MeetingStateProvider } from "@/hooks/use-meeting-state";
+import StickyCallBar from "@/components/StickyCallBar";
 
 const queryClient = new QueryClient();
 
@@ -19,14 +20,17 @@ const App = () => (
       <TooltipProvider>
         <BrowserRouter>
           <AuthProvider>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth/*" element={<AuthPage />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <MeetingStateProvider>
+              <StickyCallBar />
+              <Toaster />
+              <Sonner />
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth/*" element={<AuthPage />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </MeetingStateProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
