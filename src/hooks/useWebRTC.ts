@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface WebRTCState {
   isScreenSharing: boolean;
@@ -15,6 +15,9 @@ export const useWebRTC = () => {
     error: null,
   });
 
+  // Keep a ref to the original screen stream
+  const screenStreamRef = useRef<MediaStream | null>(null);
+
   const startScreenShare = useCallback(async () => {
     try {
       // Request screen sharing
@@ -24,6 +27,7 @@ export const useWebRTC = () => {
         },
         audio: true,
       });
+      screenStreamRef.current = screenStream;
 
       // Request audio
       const audioStream = await navigator.mediaDevices.getUserMedia({
@@ -59,8 +63,14 @@ export const useWebRTC = () => {
   }, []);
 
   const stopScreenShare = useCallback(() => {
+    // Stop all tracks in the combined stream
     if (state.stream) {
       state.stream.getTracks().forEach(track => track.stop());
+    }
+    // Stop all tracks in the original screen stream
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
     }
     setState({
       isScreenSharing: false,
