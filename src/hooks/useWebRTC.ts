@@ -17,24 +17,41 @@ export const useWebRTC = () => {
 
   // Keep a ref to the original screen stream
   const screenStreamRef = useRef<MediaStream | null>(null);
+  // Keep a ref to the latest stopScreenShare function for use in event handlers
+  const stopScreenShareRef = useRef<() => void>(() => {});
+
+  // Stop all tracks in both the combined and original screen stream
+  const stopScreenShare = useCallback(() => {
+    if (state.stream) {
+      state.stream.getTracks().forEach(track => track.stop());
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
+    }
+    setState({
+      isScreenSharing: false,
+      isAudioEnabled: false,
+      stream: null,
+      error: null,
+    });
+  }, [state.stream]);
+  stopScreenShareRef.current = stopScreenShare;
 
   const startScreenShare = useCallback(async () => {
+    // Always stop any existing screen share before starting a new one
+    stopScreenShareRef.current();
     try {
-      // Request screen sharing
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: 'always',
-        },
+        video: true,
         audio: true,
       });
       screenStreamRef.current = screenStream;
 
-      // Request audio
       const audioStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
       });
 
-      // Combine streams
       const combinedStream = new MediaStream([
         ...screenStream.getVideoTracks(),
         ...audioStream.getAudioTracks(),
@@ -47,9 +64,9 @@ export const useWebRTC = () => {
         error: null,
       });
 
-      // Handle when user stops sharing
+      // Use the latest stopScreenShare for the onended handler
       screenStream.getVideoTracks()[0].onended = () => {
-        stopScreenShare();
+        stopScreenShareRef.current();
       };
 
       return combinedStream;
@@ -61,24 +78,6 @@ export const useWebRTC = () => {
       throw error;
     }
   }, []);
-
-  const stopScreenShare = useCallback(() => {
-    // Stop all tracks in the combined stream
-    if (state.stream) {
-      state.stream.getTracks().forEach(track => track.stop());
-    }
-    // Stop all tracks in the original screen stream
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach(track => track.stop());
-      screenStreamRef.current = null;
-    }
-    setState({
-      isScreenSharing: false,
-      isAudioEnabled: false,
-      stream: null,
-      error: null,
-    });
-  }, [state.stream]);
 
   return {
     ...state,

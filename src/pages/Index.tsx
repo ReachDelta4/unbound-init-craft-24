@@ -13,6 +13,7 @@ import CallTimer from "@/components/meeting/CallTimer";
 import { useSampleData } from "@/hooks/useSampleData";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import ScreenSharePreview from "@/components/meeting/ScreenSharePreview";
+import { useMixedAudioWebSocket } from "@/hooks/useMixedAudioWebSocket";
 
 const Index = () => {
   const { toast } = useToast();
@@ -39,6 +40,37 @@ const Index = () => {
     error: webRTCError
   } = useWebRTC();
 
+  // --- Mixed Audio WebSocket Hook ---
+  const {
+    status: wsStatus,
+    error: wsError,
+    liveTranscript,
+    fullTranscript,
+    isStreaming,
+    connect: connectMixedAudio,
+    disconnect: disconnectMixedAudio,
+  } = useMixedAudioWebSocket();
+
+  // Store the mic and system audio streams
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const systemStreamRef = useRef<MediaStream | null>(null);
+
+  // Helper to extract mic and system audio tracks from the combined stream
+  const extractAudioStreams = useCallback((combinedStream: MediaStream) => {
+    // Try to distinguish mic and system audio tracks
+    // This is a best-effort approach; browser support may vary
+    const audioTracks = combinedStream.getAudioTracks();
+    if (audioTracks.length < 2) {
+      // Fallback: use the same stream for both
+      micStreamRef.current = combinedStream;
+      systemStreamRef.current = combinedStream;
+      return;
+    }
+    // Create separate streams for each track
+    micStreamRef.current = new MediaStream([audioTracks[0]]);
+    systemStreamRef.current = new MediaStream([audioTracks[1]]);
+  }, []);
+
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
   const [uiCallDuration, setUiCallDuration] = useState(0);
 
@@ -53,10 +85,18 @@ const Index = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [activeMeeting]);
 
+  // Start call: start screen share, then start mixed audio streaming
   const handleStartCall = useCallback(async (callType: string) => {
     if (!callType || !user) return;
     try {
-      await startScreenShare();
+      const combinedStream = await startScreenShare();
+      extractAudioStreams(combinedStream);
+      // Wait a moment to ensure streams are ready
+      setTimeout(() => {
+        if (micStreamRef.current && systemStreamRef.current) {
+          connectMixedAudio(micStreamRef.current, systemStreamRef.current, 16000);
+        }
+      }, 300);
       await startMeeting(callType);
     } catch (error) {
       console.error('Error starting screen share:', error);
@@ -66,11 +106,31 @@ const Index = () => {
         variant: "destructive",
       });
     }
-  }, [user, startMeeting, toast, startScreenShare, webRTCError]);
+  }, [user, startMeeting, toast, startScreenShare, webRTCError, connectMixedAudio, extractAudioStreams]);
 
+  // End call: stop audio streaming and screen share
   const handleEndCall = useCallback(() => {
+    disconnectMixedAudio();
     setShowMeetingDialog(true);
-  }, []);
+  }, [disconnectMixedAudio]);
+
+  // Cleanup on unmount or when call ends
+  useEffect(() => {
+    if (!isScreenSharing) {
+      disconnectMixedAudio();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isScreenSharing]);
+
+  // For demonstration: log transcripts
+  useEffect(() => {
+    if (liveTranscript) {
+      console.log('Live Transcript:', liveTranscript);
+    }
+    if (fullTranscript) {
+      console.log('Full Transcript:', fullTranscript);
+    }
+  }, [liveTranscript, fullTranscript]);
 
   const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string) => {
     if (!activeMeeting && !user) return;
@@ -128,7 +188,7 @@ const Index = () => {
     <MainLayout>
       <MeetingWorkspace
         isCallActive={isCallActive}
-        transcript={transcript}
+        transcript={fullTranscript}
         insights={insights}
       />
       <ScreenSharePreview
@@ -166,6 +226,11 @@ const Index = () => {
         ]}
         saveProgress={savingProgress}
       />
+      {/* Optionally, display WebSocket status and errors for debugging */}
+      <div style={{ margin: '1rem 0', color: wsStatus === 'error' ? 'red' : 'inherit' }}>
+        WebSocket Status: {wsStatus} {wsError && `- ${wsError}`}
+        {isStreaming && <span style={{ color: 'green', marginLeft: 8 }}>(Streaming audio...)</span>}
+      </div>
     </MainLayout>
   );
 };
