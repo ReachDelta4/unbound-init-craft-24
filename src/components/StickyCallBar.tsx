@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useMeetingState } from "@/hooks/use-meeting-state";
 
@@ -12,7 +12,16 @@ const StickyCallBar: React.FC = () => {
   const { activeMeeting, callStartTime } = useMeetingState();
   const navigate = useNavigate();
   const location = useLocation();
-  const isCallActive = !!(activeMeeting && activeMeeting.status === "active" && callStartTime);
+  
+  // Memoize the calculation to avoid unnecessary re-renders
+  const isCallActive = useMemo(() => {
+    return !!(activeMeeting && activeMeeting.status === "active" && callStartTime);
+  }, [activeMeeting, callStartTime]);
+
+  // Handle navigation with useCallback
+  const handleReturnToCall = useCallback(() => {
+    navigate("/");
+  }, [navigate]);
 
   // Timer calculation
   const [duration, setDuration] = React.useState(0);
@@ -21,15 +30,20 @@ const StickyCallBar: React.FC = () => {
       setDuration(0);
       return;
     }
+    
+    // Set initial duration
     setDuration(Math.floor((Date.now() - callStartTime) / 1000));
+    
+    // Use a more efficient interval approach
     const interval = setInterval(() => {
       setDuration(Math.floor((Date.now() - callStartTime) / 1000));
     }, 1000);
+    
     return () => clearInterval(interval);
   }, [isCallActive, callStartTime]);
 
+  // Early return conditions
   if (!isCallActive) return null;
-  // Don't show on the dashboard/call page
   if (location.pathname === "/") return null;
 
   return (
@@ -63,7 +77,7 @@ const StickyCallBar: React.FC = () => {
           cursor: "pointer",
           fontSize: 15,
         }}
-        onClick={() => navigate("/")}
+        onClick={handleReturnToCall}
       >
         Return to Call
       </button>
@@ -71,4 +85,4 @@ const StickyCallBar: React.FC = () => {
   );
 };
 
-export default StickyCallBar; 
+export default React.memo(StickyCallBar); 

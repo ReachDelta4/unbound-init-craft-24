@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Meeting, MeetingInsight } from "./meetings/types";
@@ -43,15 +43,28 @@ export const MeetingStateProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Persist meeting state and callStartTime to localStorage
   useEffect(() => {
-    if (activeMeeting) {
-      localStorage.setItem("activeMeeting", JSON.stringify(activeMeeting));
-    } else {
-      localStorage.removeItem("activeMeeting");
+    // Optimization: Only update localStorage when relevant values change
+    const storedMeeting = localStorage.getItem("activeMeeting");
+    const storedCallTime = localStorage.getItem("callStartTime");
+    
+    const currentMeetingJson = activeMeeting ? JSON.stringify(activeMeeting) : null;
+    const currentCallTimeStr = callStartTime?.toString() ?? null;
+    
+    // Only update localStorage if values have changed
+    if (currentMeetingJson !== storedMeeting) {
+      if (activeMeeting) {
+        localStorage.setItem("activeMeeting", currentMeetingJson as string);
+      } else {
+        localStorage.removeItem("activeMeeting");
+      }
     }
-    if (callStartTime) {
-      localStorage.setItem("callStartTime", callStartTime.toString());
-    } else {
-      localStorage.removeItem("callStartTime");
+    
+    if (currentCallTimeStr !== storedCallTime) {
+      if (callStartTime) {
+        localStorage.setItem("callStartTime", currentCallTimeStr as string);
+      } else {
+        localStorage.removeItem("callStartTime");
+      }
     }
   }, [activeMeeting, callStartTime]);
 
@@ -211,24 +224,36 @@ export const MeetingStateProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const getMeeting = useCallback(async (meetingId: string) => {
     return getMeetingWithInsights(meetingId);
   }, []);
+  
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    activeMeeting,
+    isCreatingMeeting,
+    isSavingMeeting,
+    savingProgress,
+    lastSaved,
+    callStartTime,
+    startMeeting,
+    endMeeting,
+    updateMeeting,
+    getMeeting,
+    setActiveMeeting,
+    setCallStartTime,
+  }), [
+    activeMeeting,
+    isCreatingMeeting,
+    isSavingMeeting,
+    savingProgress,
+    lastSaved,
+    callStartTime,
+    startMeeting,
+    endMeeting,
+    updateMeeting,
+    getMeeting
+  ]);
 
   return (
-    <MeetingStateContext.Provider
-      value={{
-        activeMeeting,
-        isCreatingMeeting,
-        isSavingMeeting,
-        savingProgress,
-        lastSaved,
-        callStartTime,
-        startMeeting,
-        endMeeting,
-        updateMeeting,
-        getMeeting,
-        setActiveMeeting,
-        setCallStartTime,
-      }}
-    >
+    <MeetingStateContext.Provider value={contextValue}>
       {children}
     </MeetingStateContext.Provider>
   );

@@ -42,19 +42,40 @@ export const useWebRTC = () => {
     // Always stop any existing screen share before starting a new one
     stopScreenShareRef.current();
     try {
+      // Explicitly request system audio when getting display media
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: true,
+        audio: {
+          // Explicitly request system audio
+          // This enables capturing the audio of the screen being shared
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          // In some browsers, 'mediaSource' is used to specify system audio
+          // @ts-expect-error - Some browsers support this property
+          mediaSource: 'desktop'
+        }
       });
+      
+      // Check if system audio was successfully captured
+      const hasSystemAudio = screenStream.getAudioTracks().length > 0;
+      
       screenStreamRef.current = screenStream;
 
-      const audioStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+      // Always get microphone audio separately
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
       });
 
+      // Combine all tracks (video from screen, audio from both screen and mic)
       const combinedStream = new MediaStream([
         ...screenStream.getVideoTracks(),
-        ...audioStream.getAudioTracks(),
+        ...micStream.getAudioTracks(),
+        ...(hasSystemAudio ? screenStream.getAudioTracks() : [])
       ]);
 
       setState({

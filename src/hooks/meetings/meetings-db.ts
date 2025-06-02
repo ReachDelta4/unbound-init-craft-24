@@ -133,7 +133,7 @@ export const getMeetingWithInsights = async (meetingId: string) => {
   }
 };
 
-// Fetch meetings for a user with their insights
+// Fetch meetings for a user with their insights - optimized for performance
 export const getUserMeetings = async (userId: string) => {
   try {
     console.log('[getUserMeetings] Fetching meetings for userId:', userId);
@@ -148,7 +148,7 @@ export const getUserMeetings = async (userId: string) => {
     const meetings = meetingsResult.data || [];
     if (meetings.length === 0) return [];
 
-    // Fetch all insights for these meetings
+    // Only fetch insights if there are meetings
     const meetingIds = meetings.map(m => m.id);
     const insightsResult = await supabase
       .from('meeting_insights')
@@ -158,53 +158,49 @@ export const getUserMeetings = async (userId: string) => {
     if (insightsResult.error) throw insightsResult.error;
     const insights = insightsResult.data || [];
 
-    // Process insights into a map for easy lookup
-    const insightsMap = new Map();
-    insights.forEach(insight => {
-      if (!insightsMap.has(insight.meeting_id)) {
-        insightsMap.set(insight.meeting_id, {
-          emotions: [],
-          painPoints: [],
-          objections: [],
-          recommendations: [],
-          nextActions: []
-        });
-      }
-      const meetingInsights = insightsMap.get(insight.meeting_id);
-      switch(insight.insight_type) {
-        case 'emotion':
-          meetingInsights.emotions.push({
-            emotion: insight.content,
-            level: insight.level
-          });
-          break;
-        case 'pain_points':
-          meetingInsights.painPoints.push(insight.content);
-          break;
-        case 'objections':
-          meetingInsights.objections.push(insight.content);
-          break;
-        case 'recommendations':
-          meetingInsights.recommendations.push(insight.content);
-          break;
-        case 'next_actions':
-          meetingInsights.nextActions.push(insight.content);
-          break;
-      }
-    });
-
-    // Combine meetings with their insights
-    const result = meetings.map(meeting => ({
-      ...meeting,
-      ...insightsMap.get(meeting.id) || {
+    // Use a Map for O(1) lookups instead of array operations
+    const meetingsMap = new Map();
+    meetings.forEach(meeting => {
+      meetingsMap.set(meeting.id, {
+        ...meeting,
         emotions: [],
         painPoints: [],
         objections: [],
         recommendations: [],
         nextActions: []
+      });
+    });
+
+    // Process insights in a single pass
+    for (const insight of insights) {
+      const meetingData = meetingsMap.get(insight.meeting_id);
+      if (!meetingData) continue; // Skip if meeting not found
+
+      switch(insight.insight_type) {
+        case 'emotion':
+          meetingData.emotions.push({
+            emotion: insight.content,
+            level: insight.level
+          });
+          break;
+        case 'pain_points':
+          meetingData.painPoints.push(insight.content);
+          break;
+        case 'objections':
+          meetingData.objections.push(insight.content);
+          break;
+        case 'recommendations':
+          meetingData.recommendations.push(insight.content);
+          break;
+        case 'next_actions':
+          meetingData.nextActions.push(insight.content);
+          break;
       }
-    }));
-    console.log('[getUserMeetings] Final result:', result);
+    }
+    
+    // Convert Map back to array, maintaining original order
+    const result = meetings.map(meeting => meetingsMap.get(meeting.id));
+    console.log('[getUserMeetings] Final result count:', result.length);
     return result;
   } catch (error) {
     console.error('Error fetching meetings:', error);

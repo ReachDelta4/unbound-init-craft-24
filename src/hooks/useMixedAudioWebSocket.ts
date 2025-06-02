@@ -17,7 +17,14 @@ interface UseMixedAudioWebSocketResult {
   isStreaming: boolean;
   connect: (micStream: MediaStream, systemStream: MediaStream, sampleRate?: number) => void;
   disconnect: () => void;
+  reconnectAttempts: number;
+  setAutoReconnect: (enabled: boolean) => void;
 }
+
+// Maximum number of reconnection attempts
+const MAX_RECONNECT_ATTEMPTS = 5;
+// Base delay for reconnection in ms (will be multiplied by attempt count for exponential backoff)
+const RECONNECT_BASE_DELAY = 1000;
 
 /**
  * React hook for mixing microphone and system audio, streaming to a WebSocket for real-time transcription.
@@ -35,12 +42,20 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [fullTranscript, setFullTranscript] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [autoReconnect, setAutoReconnect] = useState(true);
+  
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const sourceNodesRef = useRef<AudioNode[]>([]);
   const reconnectRef = useRef(false);
   const sampleRateRef = useRef(16000);
+  // Store streams for reconnection
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const systemStreamRef = useRef<MediaStream | null>(null);
+  // Store reconnect timer
+  const reconnectTimerRef = useRef<number | null>(null);
 
   // Helper: Convert Float32Array [-1, 1] to Int16Array PCM
   function floatTo16BitPCM(input: Float32Array): Int16Array {
@@ -58,32 +73,81 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
       constructor() {
         super();
         this._buffer = [];
-        this._bufferSize = 4096; // Tune as needed
+        this._bufferSize = 1024; // Tune as needed (was 4096)
+        // Default mixing values
+        this._micGain = 0.7;    // Microphone gain factor
+        this._sysGain = 0.5;    // System audio gain factor
+        
+        // Listen for messages from main thread to adjust gains
+        this.port.onmessage = (event) => {
+          if (event.data.micGain !== undefined) {
+            this._micGain = event.data.micGain;
+          }
+          if (event.data.sysGain !== undefined) {
+            this._sysGain = event.data.sysGain;
+          }
+        };
       }
+      
       process(inputs, outputs, parameters) {
         // inputs: [ [Float32Array], [Float32Array] ]
-        // We'll mix all input channels into mono
+        // Input 0 is mic, Input 1 is system audio
         const input0 = inputs[0][0] || new Float32Array(128);
         const input1 = inputs[1][0] || new Float32Array(128);
         const len = Math.max(input0.length, input1.length);
         const mono = new Float32Array(len);
+        
         for (let i = 0; i < len; i++) {
-          mono[i] = ((input0[i] || 0) + (input1[i] || 0)) / 2;
+          // Apply gain factors to each source, then mix
+          const micSample = (input0[i] || 0) * this._micGain;
+          const sysSample = (input1[i] || 0) * this._sysGain;
+          
+          // Mix the audio sources with adjusted gains
+          mono[i] = micSample + sysSample;
+          
+          // Prevent clipping
+          if (mono[i] > 1.0) mono[i] = 1.0;
+          if (mono[i] < -1.0) mono[i] = -1.0;
         }
+        
         // Buffer the mono data
         for (let i = 0; i < mono.length; i++) {
           this._buffer.push(mono[i]);
         }
+        
         // When buffer is full, send to main thread
         if (this._buffer.length >= this._bufferSize) {
           this.port.postMessage({ audio: this._buffer.slice(0, this._bufferSize) });
           this._buffer = this._buffer.slice(this._bufferSize);
         }
+        
         return true;
       }
     }
     registerProcessor('mixer-processor', MixerProcessor);
   `;
+
+  // Function to attempt reconnection
+  const attemptReconnect = useCallback(() => {
+    if (!autoReconnect || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || !micStreamRef.current || !systemStreamRef.current) {
+      return;
+    }
+
+    // Clear any existing reconnect timer
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    // Calculate delay with exponential backoff
+    const delay = RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts);
+    
+    // Set a timer for reconnection
+    reconnectTimerRef.current = window.setTimeout(() => {
+      setReconnectAttempts(prev => prev + 1);
+      connect(micStreamRef.current!, systemStreamRef.current!, sampleRateRef.current);
+    }, delay);
+  }, [autoReconnect, reconnectAttempts]);
 
   // Open WebSocket connection and start streaming mixed audio
   const connect = useCallback(
@@ -102,6 +166,10 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
       setFullTranscript('');
       setIsStreaming(false);
       reconnectRef.current = true;
+      
+      // Store streams for potential reconnection
+      micStreamRef.current = micStream;
+      systemStreamRef.current = systemStream;
       sampleRateRef.current = sampleRate;
 
       // Setup WebSocket
@@ -112,22 +180,25 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
       } catch (err) {
         setStatus('error');
         setError('Failed to connect WebSocket');
+        attemptReconnect();
         return;
       }
 
       ws.onopen = () => {
         setStatus('connected');
         setIsStreaming(true);
+        setReconnectAttempts(0); // Reset reconnect attempts on successful connection
       };
       ws.onerror = () => {
         setStatus('error');
         setError('WebSocket error');
+        attemptReconnect();
       };
       ws.onclose = () => {
         setStatus('disconnected');
         setIsStreaming(false);
-        if (reconnectRef.current) {
-          // Optionally implement auto-reconnect here
+        if (reconnectRef.current && autoReconnect) {
+          attemptReconnect();
         }
       };
       ws.onmessage = (event) => {
@@ -164,11 +235,14 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
       // Create source nodes for mic and system
       const micSource = audioContext.createMediaStreamSource(micStream);
       const sysSource = audioContext.createMediaStreamSource(systemStream);
-      // Optionally, you can adjust gain for each source
+      
+      // Create gain nodes with adjusted default values
       const micGain = audioContext.createGain();
-      micGain.gain.value = 1.0;
+      micGain.gain.value = 0.7; // Default mic gain (adjust as needed)
+      
       const sysGain = audioContext.createGain();
-      sysGain.gain.value = 1.0;
+      sysGain.gain.value = 0.5; // Default system audio gain (adjust as needed)
+      
       micSource.connect(micGain);
       sysSource.connect(sysGain);
       sourceNodesRef.current = [micSource, sysSource, micGain, sysGain];
@@ -180,9 +254,14 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
         outputChannelCount: [1],
       });
       workletNodeRef.current = workletNode;
+      
+      // Send initial gain values to the worklet
+      workletNode.port.postMessage({ micGain: 0.7, sysGain: 0.5 });
+      
       micGain.connect(workletNode, 0, 0);
       sysGain.connect(workletNode, 0, 1);
-      // Optionally connect to destination for monitoring (muted)
+      
+      // Optionally connect to destination for monitoring (uncomment if needed)
       // workletNode.connect(audioContext.destination);
 
       // Listen for mixed audio from the worklet
@@ -208,13 +287,23 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
         wsRef.current.send(buffer);
       };
     },
-    []
+    [attemptReconnect, autoReconnect]
   );
 
   // Stop streaming and cleanup
   const disconnect = useCallback(() => {
     reconnectRef.current = false;
     setIsStreaming(false);
+    
+    // Clear any reconnect timer
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    
+    // Reset reconnect attempts
+    setReconnectAttempts(0);
+    
     // Stop audio processing
     if (workletNodeRef.current) {
       workletNodeRef.current.port.onmessage = null;
@@ -238,6 +327,11 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
       wsRef.current.close();
       wsRef.current = null;
     }
+    
+    // Clear stream references
+    micStreamRef.current = null;
+    systemStreamRef.current = null;
+    
     setStatus('disconnected');
   }, []);
 
@@ -257,5 +351,7 @@ export function useMixedAudioWebSocket(): UseMixedAudioWebSocketResult {
     isStreaming,
     connect,
     disconnect,
+    reconnectAttempts,
+    setAutoReconnect
   };
 } 
