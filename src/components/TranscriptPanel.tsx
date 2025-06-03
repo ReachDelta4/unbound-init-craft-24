@@ -87,15 +87,14 @@ const TranscriptPanel = ({
             )}
           </div>
           
-          {/* Transcript History heading */}
+          {/* Scrollable container for sentence history with FIXED HEIGHT */}
           <div className="mb-2 text-xs font-medium text-muted-foreground">
             Transcript History
           </div>
           
-          {/* Fixed height scrollable container for sentence history */}
           <div 
             ref={scrollContainerRef}
-            className="h-64 overflow-y-auto border border-border rounded-md p-2 scroll-smooth"
+            className="h-[300px] overflow-y-auto border border-border rounded-md p-2 scroll-smooth"
           >
             <div className="space-y-3">
               {fullSentences.length > 0 ? (
