@@ -370,6 +370,18 @@ const Index = () => {
           isCallActive={isCallActive}
           transcript={fullTranscript}
           insights={insights}
+          realtimeText={liveTranscript}
+          fullSentences={fullTranscript ? fullTranscript.split('\n').filter(Boolean) : []}
+          transcriptionStatus={wsStatus}
+          transcriptionError={wsError}
+          onReconnectTranscription={() => {
+            if (micStreamRef.current && systemStreamRef.current) {
+              disconnectMixedAudio();
+              setTimeout(() => {
+                connectMixedAudio(micStreamRef.current!, systemStreamRef.current!, 16000);
+              }, 500);
+            }
+          }}
         />
         <ScreenSharePreview
           stream={stream}

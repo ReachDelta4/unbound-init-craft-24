@@ -1,9 +1,9 @@
-
 import React from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import InsightsPanel from "@/components/InsightsPanel";
 import NotesPanel from "@/components/NotesPanel";
+import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -15,9 +15,24 @@ interface MeetingWorkspaceProps {
     recommendations: string[];
     nextActions: string[];
   };
+  // Add props for real-time transcription
+  realtimeText?: string;
+  fullSentences?: string[];
+  transcriptionStatus?: TranscriptionWSStatus;
+  transcriptionError?: string | null;
+  onReconnectTranscription?: () => void;
 }
 
-const MeetingWorkspace = ({ isCallActive, transcript, insights }: MeetingWorkspaceProps) => {
+const MeetingWorkspace = ({ 
+  isCallActive, 
+  transcript, 
+  insights,
+  realtimeText = "",
+  fullSentences = [],
+  transcriptionStatus = "disconnected",
+  transcriptionError = null,
+  onReconnectTranscription = () => {}
+}: MeetingWorkspaceProps) => {
   return (
     <div className="flex-grow overflow-hidden">
       <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -30,6 +45,11 @@ const MeetingWorkspace = ({ isCallActive, transcript, insights }: MeetingWorkspa
           <TranscriptPanel 
             isCallActive={isCallActive} 
             transcript={transcript}
+            realtimeText={realtimeText}
+            fullSentences={fullSentences}
+            transcriptionStatus={transcriptionStatus}
+            transcriptionError={transcriptionError}
+            onReconnect={onReconnectTranscription}
           />
         </ResizablePanel>
 
