@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MeetingControls from "@/components/MeetingControls";
 import MeetingEndDialog from "@/components/MeetingEndDialog";
+import EndCallConfirmationDialog from "@/components/EndCallConfirmationDialog";
 import { useMeetingState } from "@/hooks/use-meeting-state";
 import { useNotesState } from "@/hooks/use-notes-state";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,7 +33,7 @@ const Index = () => {
   } = useMeetingState();
 
   const { saveNotesToMeeting, isSaving: isSavingNotes, notes, checklist } = useNotesState();
-  const { insights, transcript, generateSummary } = useSampleData();
+  const { insights, generateSummary } = useSampleData();
   const {
     startScreenShare,
     stopScreenShare,
@@ -129,7 +130,220 @@ const Index = () => {
   }, []);
 
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [showEndCallConfirmation, setShowEndCallConfirmation] = useState(false);
   const [uiCallDuration, setUiCallDuration] = useState(0);
+  
+  // Refs for storing latest data that might need to be auto-saved
+  const tempTranscriptRef = useRef("");
+  const tempSummaryRef = useRef("");
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Format transcript for saving - moved up before it's used in useEffect
+  const formatTranscript = useCallback((sentences: string[]) => {
+    if (!sentences || sentences.length === 0) return "";
+    
+    // Join sentences with double line breaks for better readability
+    return sentences.join('\n\n');
+  }, []);
+
+  // Keep transcript data updated in refs for potential auto-save
+  useEffect(() => {
+    if (fullTranscript) {
+      tempTranscriptRef.current = formatTranscript(fullTranscript.split('\n').filter(Boolean));
+    }
+  }, [fullTranscript, formatTranscript]);
+
+  // Generate and store summary periodically
+  useEffect(() => {
+    if (activeMeeting?.status === 'active') {
+      // Update summary every 30 seconds during an active call
+      const summaryInterval = setInterval(() => {
+        tempSummaryRef.current = generateSummary();
+      }, 30000);
+      
+      return () => clearInterval(summaryInterval);
+    }
+  }, [activeMeeting?.status, generateSummary]);
+
+  // Auto-save logic for unexpected termination
+  useEffect(() => {
+    // Setup emergency auto-save in case browser crashes or user force-closes
+    const setupEmergencyAutoSave = () => {
+      if (activeMeeting?.status === 'active' && user) {
+        // Clear any existing timeout
+        if (autoSaveTimeoutRef.current) {
+          clearTimeout(autoSaveTimeoutRef.current);
+        }
+        
+        // Schedule an auto-save every 2 minutes
+        autoSaveTimeoutRef.current = setTimeout(async () => {
+          try {
+            const transcript = tempTranscriptRef.current;
+            const summary = tempSummaryRef.current || generateSummary();
+            
+            const insightsForSaving = [
+              { type: 'emotions', data: insights.emotions },
+              { type: 'painPoints', data: insights.painPoints },
+              { type: 'objections', data: insights.objections },
+              { type: 'recommendations', data: insights.recommendations },
+              { type: 'nextActions', data: insights.nextActions }
+            ];
+            
+            // Quietly save a backup without affecting UI
+            await endMeeting(transcript, summary, insightsForSaving);
+            console.log("Auto-saved meeting backup at", new Date().toISOString());
+            
+            // Schedule the next auto-save
+            setupEmergencyAutoSave();
+          } catch (error) {
+            console.error("Failed to auto-save meeting:", error);
+            // Still try again after a failure
+            setupEmergencyAutoSave();
+          }
+        }, 120000); // Every 2 minutes
+      }
+    };
+    
+    setupEmergencyAutoSave();
+    
+    // Also save immediately when the meeting dialog is shown (before user input)
+    if (showMeetingDialog && activeMeeting?.status === 'active' && user) {
+      const immediateBackup = async () => {
+        try {
+          const transcript = tempTranscriptRef.current;
+          const summary = tempSummaryRef.current || generateSummary();
+          
+          const insightsForSaving = [
+            { type: 'emotions', data: insights.emotions },
+            { type: 'painPoints', data: insights.painPoints },
+            { type: 'objections', data: insights.objections },
+            { type: 'recommendations', data: insights.recommendations },
+            { type: 'nextActions', data: insights.nextActions }
+          ];
+          
+          // Save with a default title to ensure data is captured
+          const meetingId = await endMeeting(transcript, summary, insightsForSaving);
+          if (meetingId) {
+            await updateMeeting(meetingId, { title: "Auto-saved Meeting" });
+            console.log("Immediate backup saved at", new Date().toISOString());
+          }
+        } catch (error) {
+          console.error("Failed to create immediate backup:", error);
+        }
+      };
+      
+      immediateBackup();
+    }
+    
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [activeMeeting?.status, user, endMeeting, insights, generateSummary, showMeetingDialog, updateMeeting, tempTranscriptRef, tempSummaryRef]);
+  
+  // Enhanced browser close warning with emergency save
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Show warning when either active call or saving dialog is open
+      if ((activeMeeting && activeMeeting.status === 'active') || showMeetingDialog) {
+        e.preventDefault();
+        e.returnValue = "You have a call in progress or unsaved meeting data. Are you sure you want to leave?";
+        
+        // Try to save data immediately in case user forces close
+        if (activeMeeting && user) {
+          try {
+            // Use sendBeacon for reliable data sending during page unload
+            const transcript = tempTranscriptRef.current;
+            const summary = tempSummaryRef.current || generateSummary();
+            
+            const insightsForSaving = [
+              { type: 'emotions', data: insights.emotions },
+              { type: 'painPoints', data: insights.painPoints },
+              { type: 'objections', data: insights.objections },
+              { type: 'recommendations', data: insights.recommendations },
+              { type: 'nextActions', data: insights.nextActions }
+            ];
+            
+            // Create a FormData object to send via beacon
+            const emergencyData = {
+              userId: user.id,
+              meetingId: activeMeeting.id,
+              transcript: transcript,
+              summary: summary,
+              insights: insightsForSaving,
+              timestamp: new Date().toISOString(),
+              title: "Emergency Auto-saved Meeting"
+            };
+            
+            // Store in localStorage as a backup
+            localStorage.setItem('emergency_meeting_backup', JSON.stringify(emergencyData));
+            
+            // Try to save via normal API if possible
+            setTimeout(() => {
+              endMeeting(transcript, summary, insightsForSaving)
+                .then(meetingId => {
+                  if (meetingId) {
+                    updateMeeting(meetingId, { title: "Emergency Auto-saved Meeting" });
+                    console.log("Emergency save completed");
+                    // Clear localStorage backup if successful
+                    localStorage.removeItem('emergency_meeting_backup');
+                  }
+                })
+                .catch(err => console.error("Emergency save failed:", err));
+            }, 0);
+            
+          } catch (error) {
+            console.error("Failed to prepare emergency save:", error);
+          }
+        }
+      }
+    };
+    
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    
+    // Check for any emergency backups from previous session
+    const checkForEmergencyBackup = async () => {
+      try {
+        const backupData = localStorage.getItem('emergency_meeting_backup');
+        if (backupData && user) {
+          const data = JSON.parse(backupData);
+          
+          // Only process if it belongs to current user
+          if (data.userId === user.id) {
+            console.log("Found emergency backup, attempting to restore...");
+            
+            // Try to save the backup data
+            const meetingId = await endMeeting(
+              data.transcript || "",
+              data.summary || "",
+              data.insights || []
+            );
+            
+            if (meetingId) {
+              await updateMeeting(meetingId, { title: "Recovered Meeting" });
+              toast({
+                title: "Meeting recovered",
+                description: "We've recovered meeting data from your previous session.",
+              });
+            }
+            
+            // Clear the backup
+            localStorage.removeItem('emergency_meeting_backup');
+          }
+        }
+      } catch (error) {
+        console.error("Failed to process emergency backup:", error);
+      }
+    };
+    
+    // Run recovery check when component mounts and user is available
+    if (user) {
+      checkForEmergencyBackup();
+    }
+    
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeMeeting, showMeetingDialog, user, endMeeting, updateMeeting, insights, generateSummary, tempTranscriptRef, tempSummaryRef, toast]);
 
   // Monitor WebSocket connection status
   useEffect(() => {
@@ -152,17 +366,6 @@ const Index = () => {
     if (!activeMeeting || activeMeeting.status !== 'active') {
       setConnectionTimedOut(false);
     }
-  }, [activeMeeting]);
-
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (activeMeeting && activeMeeting.status === 'active') {
-        e.preventDefault();
-        e.returnValue = "You have a call in progress. Are you sure you want to leave?";
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [activeMeeting]);
 
   // Handle connection timeout
@@ -257,8 +460,14 @@ const Index = () => {
     }
   }, [user, startMeeting, toast, startScreenShare, webRTCError, connectMixedAudio, extractAudioStreams, setAutoReconnect]);
 
-  // End call: stop audio streaming and screen share
+  // End call: show confirmation dialog first
   const handleEndCall = useCallback(() => {
+    setShowEndCallConfirmation(true);
+  }, []);
+
+  // Confirm end call: stop audio streaming and screen share, then show save dialog
+  const handleConfirmEndCall = useCallback(() => {
+    setShowEndCallConfirmation(false);
     disconnectMixedAudio();
     setShowMeetingDialog(true);
   }, [disconnectMixedAudio]);
@@ -284,6 +493,10 @@ const Index = () => {
   const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string) => {
     if (!activeMeeting && !user) return;
     try {
+      // Ensure we're using the actual transcript from the call
+      const transcriptToSave = transcript || tempTranscriptRef.current || "";
+      const summaryToSave = summary || tempSummaryRef.current || "";
+      
       const insightsForSaving = [
         { type: 'emotions', data: insights.emotions },
         { type: 'painPoints', data: insights.painPoints },
@@ -299,7 +512,7 @@ const Index = () => {
       try {
         // Use the signal from AbortController
         const meetingId = await Promise.race([
-          endMeeting(transcript, summary, insightsForSaving),
+          endMeeting(transcriptToSave, summaryToSave, insightsForSaving),
           new Promise((_, reject) => {
             abortController.signal.addEventListener('abort', () => {
               reject(new Error('Meeting save timeout'));
@@ -331,6 +544,16 @@ const Index = () => {
       setShowMeetingDialog(false);
       setUiCallDuration(0);
       setActiveMeeting(null);
+      
+      // Clear temporary data
+      tempTranscriptRef.current = "";
+      tempSummaryRef.current = "";
+      
+      // Clear any pending auto-save
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
     }
   }, [activeMeeting, user, insights, endMeeting, updateMeeting, toast, stopScreenShare, setActiveMeeting]);
 
@@ -382,6 +605,7 @@ const Index = () => {
               }, 500);
             }
           }}
+          className="mb-14"
         />
         <ScreenSharePreview
           stream={stream}
@@ -391,7 +615,7 @@ const Index = () => {
           isActive={isCallActive}
           onDurationChange={setUiCallDuration}
         />
-        <div className="bg-card border-t border-border p-4">
+        <div className="bg-card border-t border-border fixed bottom-0 left-0 right-0 py-2 px-4 shadow-md z-10">
           <MeetingControls
             isCallActive={isCallActive}
             callType={callType}
@@ -402,6 +626,22 @@ const Index = () => {
             isLoading={isCreatingMeeting}
             isSaving={isSavingMeeting}
           />
+          {!isUIBlocked && (
+            <div className="text-xs text-center text-muted-foreground mt-1">
+              {wsStatus === 'connected' && isStreaming ? (
+                <span className="flex items-center justify-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  Transcription active
+                </span>
+              ) : wsStatus === 'error' ? (
+                <span className="text-red-500">Transcription error - reconnect to try again</span>
+              ) : wsStatus === 'connecting' ? (
+                <span>Connecting to transcription service...</span>
+              ) : (
+                <span>Transcription ready</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
       
@@ -409,7 +649,7 @@ const Index = () => {
         isOpen={showMeetingDialog}
         onClose={() => setShowMeetingDialog(false)}
         onSave={(title, transcript, summary) => handleSaveMeeting(title, transcript, summary)}
-        transcript={transcript}
+        transcript={fullTranscript ? formatTranscript(fullTranscript.split('\n').filter(Boolean)) : ""}
         summary={generateSummary()}
         insights={[
           { type: 'emotions', data: insights.emotions },
@@ -421,13 +661,11 @@ const Index = () => {
         saveProgress={savingProgress}
       />
       
-      {/* Optionally, display WebSocket status and errors for debugging */}
-      {!isUIBlocked && (
-        <div style={{ margin: '1rem 0', color: wsStatus === 'error' ? 'red' : 'inherit' }}>
-          WebSocket Status: {wsStatus} {wsError && `- ${wsError}`}
-          {isStreaming && <span style={{ color: 'green', marginLeft: 8 }}>(Streaming audio...)</span>}
-        </div>
-      )}
+      <EndCallConfirmationDialog
+        isOpen={showEndCallConfirmation}
+        onClose={() => setShowEndCallConfirmation(false)}
+        onConfirm={handleConfirmEndCall}
+      />
     </MainLayout>
   );
 };

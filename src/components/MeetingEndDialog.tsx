@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,15 +38,101 @@ const MeetingEndDialog = ({
   const [summary, setSummary] = useState(initialSummary);
   const [isSaving, setIsSaving] = useState(false);
   const [internalProgress, setInternalProgress] = useState(0);
+  const [autoSaveAttempted, setAutoSaveAttempted] = useState(false);
+  const dataRef = useRef({ title, transcript, summary });
+
+  // Keep ref updated with latest data for auto-save
+  useEffect(() => {
+    dataRef.current = { title, transcript, summary };
+  }, [title, transcript, summary]);
 
   useEffect(() => {
     if (isOpen) {
       setTitle("New Meeting");
-      setTranscript(initialTranscript);
+      // Make sure we're using the actual transcript, not placeholder
+      setTranscript(initialTranscript || "");
       setSummary(initialSummary);
       setInternalProgress(0);
+      setAutoSaveAttempted(false);
     }
   }, [isOpen, initialTranscript, initialSummary]);
+
+  // Auto-save on page exit if dialog is open
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isOpen && !autoSaveAttempted) {
+        e.preventDefault();
+        e.returnValue = "You have unsaved meeting data. Are you sure you want to leave?";
+        
+        // Try to auto-save - but can't await in beforeunload
+        setAutoSaveAttempted(true);
+        try {
+          const { title: currentTitle, transcript: currentTranscript, summary: currentSummary } = dataRef.current;
+          
+          // Store current data in localStorage for recovery
+          const emergencyData = {
+            title: currentTitle,
+            transcript: currentTranscript,
+            summary: currentSummary,
+            timestamp: new Date().toISOString()
+          };
+          localStorage.setItem('meeting_end_dialog_data', JSON.stringify(emergencyData));
+          
+          // Use setTimeout to ensure this runs after the beforeunload handling
+          setTimeout(() => {
+            onSave(currentTitle, currentTranscript, currentSummary)
+              .then(() => {
+                // Clear emergency data if save succeeds
+                localStorage.removeItem('meeting_end_dialog_data');
+              })
+              .catch(error => console.error("Auto-save failed:", error));
+          }, 0);
+        } catch (error) {
+          console.error("Auto-save setup failed:", error);
+        }
+        
+        return e.returnValue;
+      }
+    };
+    
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isOpen, onSave, autoSaveAttempted]);
+
+  // Check for emergency data when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        const savedData = localStorage.getItem('meeting_end_dialog_data');
+        if (savedData) {
+          const data = JSON.parse(savedData);
+          
+          // Only restore if the data is less than 1 hour old
+          const savedTime = new Date(data.timestamp).getTime();
+          const currentTime = new Date().getTime();
+          const oneHour = 60 * 60 * 1000;
+          
+          if (currentTime - savedTime < oneHour) {
+            // Ask user if they want to restore
+            if (window.confirm('We found unsaved meeting data. Would you like to restore it?')) {
+              setTitle(data.title || "New Meeting");
+              setTranscript(data.transcript || initialTranscript || "");
+              setSummary(data.summary || initialSummary || "");
+              toast({
+                title: "Data restored",
+                description: "Your unsaved meeting data has been restored."
+              });
+            }
+          }
+          
+          // Clear the saved data regardless of whether it was used
+          localStorage.removeItem('meeting_end_dialog_data');
+        }
+      } catch (error) {
+        console.error("Failed to restore emergency data:", error);
+      }
+    }
+  }, [isOpen, initialTranscript, initialSummary, toast]);
 
   // Update internal progress based on incoming saveProgress
   useEffect(() => {
@@ -61,10 +146,12 @@ const MeetingEndDialog = ({
             title: "Meeting saved",
             description: "Your meeting has been successfully saved.",
           });
+          // Only close after successful save
+          onClose();
         }, 500);
       }
     }
-  }, [saveProgress, toast]);
+  }, [saveProgress, toast, onClose]);
 
   const handleSave = async () => {
     try {
@@ -100,6 +187,7 @@ const MeetingEndDialog = ({
           setTimeout(() => {
             setIsSaving(false);
             setInternalProgress(0);
+            onClose();
           }, 500);
         }
       } catch (error) {
@@ -120,7 +208,16 @@ const MeetingEndDialog = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSaving && onClose()}>
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={(open) => {
+        // Prevent dialog from being closed - it can only be closed programmatically after saving
+        if (!open && !isSaving) {
+          // Do nothing - dialog remains open
+          // This effectively prevents the dialog from being closed with Escape or clicking outside
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Save Meeting</DialogTitle>
@@ -247,16 +344,9 @@ const MeetingEndDialog = ({
 
         <DialogFooter>
           <Button 
-            variant="outline" 
-            onClick={onClose} 
-            disabled={isSaving}
-          >
-            Cancel
-          </Button>
-          <Button 
             onClick={handleSave} 
             disabled={isSaving}
-            className="relative"
+            className="relative w-full"
           >
             {isSaving ? "Saving..." : "Save Meeting"}
           </Button>

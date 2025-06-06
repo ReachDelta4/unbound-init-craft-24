@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +37,7 @@ const MeetingControls = ({
   };
 
   return (
-    <div className="flex justify-center items-center gap-4">
+    <div className="flex justify-center items-center gap-3 max-w-3xl mx-auto">
       {isCallActive && (
         <div className="flex items-center gap-2 bg-muted py-1 px-3 rounded-full">
           <span className="animate-pulse text-green-500">●</span>
@@ -51,20 +50,20 @@ const MeetingControls = ({
         onValueChange={onCallTypeChange}
         disabled={isCallActive || isLoading}
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[180px] h-9">
           <SelectValue placeholder="Select call type" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="video" className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <Video size={16} />
-              <span>Video Meeting (Google Meet/Zoom)</span>
+              <span>Video Meeting</span>
             </div>
           </SelectItem>
           <SelectItem value="audio" className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <Mic size={16} />
-              <span>Audio Call (Zoho, Salesforce)</span>
+              <span>Audio Call</span>
             </div>
           </SelectItem>
         </SelectContent>
@@ -74,18 +73,18 @@ const MeetingControls = ({
         <Button 
           onClick={onEndCall} 
           variant="destructive" 
-          size="lg"
-          className="gap-2"
+          size="sm"
+          className="gap-2 h-9 px-4"
           disabled={isSaving}
         >
           {isSaving ? (
             <>
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={16} className="animate-spin" />
               Saving...
             </>
           ) : (
             <>
-              <StopCircle size={18} />
+              <StopCircle size={16} />
               End Call
             </>
           )}
@@ -94,18 +93,18 @@ const MeetingControls = ({
         <Button 
           onClick={onStartCall} 
           variant="default" 
-          size="lg"
+          size="sm"
           disabled={!callType || isLoading}
-          className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+          className="bg-indigo-600 hover:bg-indigo-700 gap-2 h-9 px-4"
         >
           {isLoading ? (
             <>
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={16} className="animate-spin" />
               Starting...
             </>
           ) : (
             <>
-              <Play size={18} />
+              <Play size={16} />
               Start Call
             </>
           )}

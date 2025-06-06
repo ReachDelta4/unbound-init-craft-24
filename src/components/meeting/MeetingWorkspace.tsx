@@ -4,6 +4,7 @@ import TranscriptPanel from "@/components/TranscriptPanel";
 import InsightsPanel from "@/components/InsightsPanel";
 import NotesPanel from "@/components/NotesPanel";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
+import { cn } from "@/lib/utils";
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -21,6 +22,7 @@ interface MeetingWorkspaceProps {
   transcriptionStatus?: TranscriptionWSStatus;
   transcriptionError?: string | null;
   onReconnectTranscription?: () => void;
+  className?: string;
 }
 
 const MeetingWorkspace = ({ 
@@ -31,10 +33,11 @@ const MeetingWorkspace = ({
   fullSentences = [],
   transcriptionStatus = "disconnected",
   transcriptionError = null,
-  onReconnectTranscription = () => {}
+  onReconnectTranscription = () => {},
+  className
 }: MeetingWorkspaceProps) => {
   return (
-    <div className="flex-grow overflow-hidden">
+    <div className={cn("flex-grow overflow-hidden", className)}>
       <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Transcript Panel - Left Side */}
         <ResizablePanel 
@@ -64,6 +67,7 @@ const MeetingWorkspace = ({
           <InsightsPanel 
             isCallActive={isCallActive}
             insights={insights}
+            fullSentences={fullSentences}
           />
         </ResizablePanel>
 

@@ -105,7 +105,7 @@ const TranscriptPanel = ({
                     id={`sentence-${index}`}
                   >
                     <div className="text-xs font-medium mb-1 text-muted-foreground">
-                      Speaker
+                      Sentence
                     </div>
                     <p className="text-foreground">{sentence}</p>
                   </div>
