@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface WebRTCState {
   isScreenSharing: boolean;
@@ -22,21 +22,41 @@ export const useWebRTC = () => {
 
   // Stop all tracks in both the combined and original screen stream
   const stopScreenShare = useCallback(() => {
+    console.log("Stopping screen share...");
+    
     if (state.stream) {
-      state.stream.getTracks().forEach(track => track.stop());
+      state.stream.getTracks().forEach(track => {
+        console.log(`Stopping track: ${track.kind} - ${track.label}`);
+        track.stop();
+      });
     }
+    
     if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current.getTracks().forEach(track => {
+        console.log(`Stopping original track: ${track.kind} - ${track.label}`);
+        track.stop();
+      });
       screenStreamRef.current = null;
     }
+    
     setState({
       isScreenSharing: false,
       isAudioEnabled: false,
       stream: null,
       error: null,
     });
+    
+    console.log("Screen share stopped");
   }, [state.stream]);
   stopScreenShareRef.current = stopScreenShare;
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log("WebRTC hook unmounting, cleaning up streams");
+      stopScreenShareRef.current();
+    };
+  }, []);
 
   const startScreenShare = useCallback(async () => {
     // Always stop any existing screen share before starting a new one

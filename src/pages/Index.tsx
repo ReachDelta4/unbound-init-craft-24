@@ -14,7 +14,6 @@ import CallTimer from "@/components/meeting/CallTimer";
 import { useSampleData } from "@/hooks/useSampleData";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useMixedAudioWebSocket } from "@/hooks/useMixedAudioWebSocket";
-import WebSocketConnectionPopup from "@/components/meeting/WebSocketConnectionPopup";
 
 const Index = () => {
   const { toast } = useToast();
@@ -53,7 +52,6 @@ const Index = () => {
     setAutoReconnect
   } = useMixedAudioWebSocket();
 
-  const [showConnectionPopup, setShowConnectionPopup] = useState(false);
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const micStreamRef = useRef<MediaStream | null>(null);
   const systemStreamRef = useRef<MediaStream | null>(null);
@@ -276,19 +274,6 @@ const Index = () => {
   }, [activeMeeting, showMeetingDialog, user, endMeeting, updateMeeting, insights, generateSummary, toast, isScreenSharing, stopScreenShare]);
 
   useEffect(() => {
-    if (activeMeeting && activeMeeting.status === 'active') {
-      if (wsStatus === 'connecting' || wsStatus === 'error') {
-        setShowConnectionPopup(true);
-      } else if (wsStatus === 'connected') {
-        setShowConnectionPopup(false);
-        setConnectionTimedOut(false);
-      }
-    } else {
-      setShowConnectionPopup(false);
-    }
-  }, [wsStatus, activeMeeting]);
-
-  useEffect(() => {
     if (!activeMeeting || activeMeeting.status !== 'active') {
       setConnectionTimedOut(false);
     }
@@ -379,8 +364,31 @@ const Index = () => {
 
   const handleConfirmEndCall = useCallback(() => {
     setShowEndCallConfirmation(false);
+    
+    // Stop audio processing
     disconnectMixedAudio();
+    
+    // Stop screen sharing
     stopScreenShare();
+    
+    // Explicitly stop all tracks in micStreamRef and systemStreamRef
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(track => {
+        console.log(`Explicitly stopping mic track: ${track.kind} - ${track.label}`);
+        track.stop();
+      });
+      micStreamRef.current = null;
+    }
+    
+    if (systemStreamRef.current) {
+      systemStreamRef.current.getTracks().forEach(track => {
+        console.log(`Explicitly stopping system track: ${track.kind} - ${track.label}`);
+        track.stop();
+      });
+      systemStreamRef.current = null;
+    }
+    
+    // Show meeting dialog
     setShowMeetingDialog(true);
   }, [disconnectMixedAudio, stopScreenShare]);
 
@@ -390,6 +398,14 @@ const Index = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isScreenSharing]);
+
+  // Add a new effect to ensure screen sharing stops when the active meeting changes
+  useEffect(() => {
+    if (!activeMeeting || activeMeeting.status !== 'active') {
+      // Make sure screen sharing is stopped when call is no longer active
+      stopScreenShare();
+    }
+  }, [activeMeeting, stopScreenShare]);
 
   useEffect(() => {
     if (liveTranscript) {
@@ -470,7 +486,27 @@ const Index = () => {
         variant: "destructive"
       });
     } finally {
+      // Ensure all screen sharing is stopped
       stopScreenShare();
+      
+      // Explicitly stop all tracks in micStreamRef and systemStreamRef
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach(track => {
+          console.log(`Explicitly stopping mic track on save: ${track.kind} - ${track.label}`);
+          track.stop();
+        });
+        micStreamRef.current = null;
+      }
+      
+      if (systemStreamRef.current) {
+        systemStreamRef.current.getTracks().forEach(track => {
+          console.log(`Explicitly stopping system track on save: ${track.kind} - ${track.label}`);
+          track.stop();
+        });
+        systemStreamRef.current = null;
+      }
+      
+      // Clean up UI state
       setShowMeetingDialog(false);
       setUiCallDuration(0);
       setActiveMeeting(null);
@@ -497,21 +533,10 @@ const Index = () => {
 
   const isCallActive = !!(activeMeeting && activeMeeting.status === 'active');
   const callType = activeMeeting?.platform || null;
-  const isUIBlocked = showConnectionPopup && !connectionTimedOut;
+  const isUIBlocked = false;
 
   return (
     <MainLayout>
-      <WebSocketConnectionPopup 
-        isOpen={showConnectionPopup && !connectionTimedOut} 
-        onTimeout={() => setConnectionTimedOut(true)}
-        timeoutMs={30000}
-        message={wsStatus === 'error' 
-          ? `Connection error: ${wsError || 'Unable to connect to transcription service'}`
-          : `Connecting to transcription service${reconnectAttempts > 0 ? ` (Attempt ${reconnectAttempts})` : ''}...`
-        }
-        title={wsStatus === 'error' ? "Connection Error" : "Establishing Connection"}
-      />
-      
       <div className={isUIBlocked ? "pointer-events-none" : ""}>
         <MeetingWorkspace
           isCallActive={isCallActive}
@@ -568,30 +593,51 @@ const Index = () => {
             isLoading={isCreatingMeeting}
             isSaving={isSavingMeeting}
           />
-          {!isUIBlocked && (
-            <div className="text-xs text-center text-muted-foreground mt-1">
-              {wsStatus === 'connected' && isStreaming ? (
-                <span className="flex items-center justify-center gap-1">
-                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                  Transcription active
-                </span>
-              ) : wsStatus === 'error' ? (
-                <span className="text-red-500">Transcription error - reconnect to try again</span>
-              ) : wsStatus === 'connecting' ? (
-                <span>Connecting to transcription service...</span>
-              ) : (
-                <span>Transcription ready</span>
-              )}
-            </div>
-          )}
+          <div className="text-xs text-center text-muted-foreground mt-1">
+            {wsStatus === 'connected' && isStreaming ? (
+              <span className="flex items-center justify-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span className="text-green-500">Connected</span>
+              </span>
+            ) : wsStatus === 'error' ? (
+              <span className="text-red-500">Transcription error - reconnect to try again</span>
+            ) : wsStatus === 'connecting' ? (
+              <span className="flex items-center justify-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                Reconnecting...
+              </span>
+            ) : (
+              <span>Transcription ready</span>
+            )}
+          </div>
         </div>
       </div>
       
       <MeetingEndDialog
         isOpen={showMeetingDialog}
         onClose={() => {
-          setShowMeetingDialog(false);
+          // Stop screen sharing
           stopScreenShare();
+          
+          // Explicitly stop all tracks in micStreamRef and systemStreamRef
+          if (micStreamRef.current) {
+            micStreamRef.current.getTracks().forEach(track => {
+              console.log(`Explicitly stopping mic track on dialog close: ${track.kind} - ${track.label}`);
+              track.stop();
+            });
+            micStreamRef.current = null;
+          }
+          
+          if (systemStreamRef.current) {
+            systemStreamRef.current.getTracks().forEach(track => {
+              console.log(`Explicitly stopping system track on dialog close: ${track.kind} - ${track.label}`);
+              track.stop();
+            });
+            systemStreamRef.current = null;
+          }
+          
+          // Clean up UI state
+          setShowMeetingDialog(false);
           setUiCallDuration(0);
           setActiveMeeting(null);
         }}
