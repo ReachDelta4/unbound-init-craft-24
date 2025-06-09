@@ -1,9 +1,12 @@
 
 import React from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import FloatingNotesWidget from "@/components/FloatingNotesWidget";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserMenu } from "@/components/auth/UserMenu";
 import ClientInterestBar from "./ClientInterestBar";
 import SimpleClientEmotion from "./SimpleClientEmotion";
 import CallStageIndicator from "./CallStageIndicator";
@@ -53,9 +56,9 @@ const MeetingWorkspace = ({
   return (
     <div className={cn("h-full overflow-hidden relative", className)}>
       <div className="h-full flex flex-col">
-        {/* Top Section: Compact header with all info */}
+        {/* Compact Top Section */}
         <div className="flex-shrink-0 p-3 space-y-2">
-          {/* First row: Client Interest (20%), Client Emotion, Call Stage */}
+          {/* First row: Client Interest (20%), Client Emotion, Call Stage, User Controls */}
           <div className="flex gap-3 items-center">
             <div className="w-1/5">
               <ClientInterestBar interestLevel={clientInterest} />
@@ -66,6 +69,10 @@ const MeetingWorkspace = ({
             <div className="flex-1">
               <CallStageIndicator currentStage={currentStage} />
             </div>
+            <div className="flex justify-end items-center gap-2">
+              <ThemeToggle />
+              <UserMenu />
+            </div>
           </div>
           
           {/* Second row: AI Response */}
@@ -74,7 +81,7 @@ const MeetingWorkspace = ({
           </div>
         </div>
 
-        {/* Main Content Area - Fixed height minus header and footer */}
+        {/* Main Content Area */}
         <div className="flex-1 px-3 pb-3 min-h-0">
           <ResizablePanelGroup direction="horizontal" className="h-full">
             {/* Left Side Panel - Emotions & Pain Points */}
@@ -84,11 +91,13 @@ const MeetingWorkspace = ({
               maxSize={25}
               className="pr-2"
             >
-              <LeftInsightsPanel 
-                isCallActive={isCallActive}
-                emotions={insights.emotions}
-                painPoints={insights.painPoints}
-              />
+              <ScrollArea className="h-full">
+                <LeftInsightsPanel 
+                  isCallActive={isCallActive}
+                  emotions={insights.emotions}
+                  painPoints={insights.painPoints}
+                />
+              </ScrollArea>
             </ResizablePanel>
 
             <ResizableHandle withHandle />
@@ -104,7 +113,7 @@ const MeetingWorkspace = ({
                 <div className="flex-shrink-0">
                   <ResizableScreenShare 
                     stream={stream} 
-                    isActive={isCallActive} 
+                    isActive={isCallActive && !!stream} 
                   />
                 </div>
                 
@@ -127,12 +136,14 @@ const MeetingWorkspace = ({
               maxSize={25}
               className="pl-2"
             >
-              <RightInsightsPanel 
-                isCallActive={isCallActive}
-                objections={insights.objections}
-                recommendations={insights.recommendations}
-                nextActions={insights.nextActions}
-              />
+              <ScrollArea className="h-full">
+                <RightInsightsPanel 
+                  isCallActive={isCallActive}
+                  objections={insights.objections}
+                  recommendations={insights.recommendations}
+                  nextActions={insights.nextActions}
+                />
+              </ScrollArea>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>

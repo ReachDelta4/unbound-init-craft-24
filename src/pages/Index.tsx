@@ -496,7 +496,7 @@ const Index = () => {
             }
           }}
           stream={stream}
-          className="h-[calc(100vh-64px-56px)]"
+          className="h-[calc(100vh-56px)]"
         />
         
         <CallTimer

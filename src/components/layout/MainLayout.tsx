@@ -43,13 +43,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
 
   return (
     <div className="h-screen w-full bg-background text-foreground flex flex-col">
-      <header className="bg-card p-4 border-b border-border flex items-center justify-end">
-        <div className="flex justify-end items-center gap-2">
-          <ThemeToggle />
-          <UserMenu />
-        </div>
-      </header>
-      
       {children}
       <CallInProgressDialog
         open={showCallDialog}
