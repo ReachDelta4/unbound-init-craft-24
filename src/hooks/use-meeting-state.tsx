@@ -1,8 +1,9 @@
+
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Meeting } from "@/types";
-import { createMeeting as createMeetingAPI, endMeeting as endMeetingAPI, getMeeting as getMeetingAPI, updateMeeting as updateMeetingAPI } from "@/lib/api";
+import { Meeting } from "@/hooks/meetings/types";
+import { createMeeting, updateMeetingInDb, completeMeeting, insertMeetingInsights, getMeetingWithInsights } from "@/hooks/meetings/meetings-db";
 
 interface InsightData {
   type: string;
@@ -16,7 +17,7 @@ export interface MeetingStateContextProps {
   savingProgress: number;
   lastSaved: Date | null;
   callStartTime: number;
-  isCallActive: boolean; // Add this missing property
+  isCallActive: boolean;
   startMeeting: (platform: string) => Promise<void>;
   endMeeting: (transcript: string, summary: string, insights: InsightData[]) => Promise<string | null>;
   updateMeeting: (meetingId: string, updates: Partial<Meeting>) => Promise<void>;
@@ -33,21 +34,6 @@ export const useMeetingState = () => {
     throw new Error("useMeetingState must be used within a MeetingStateProvider");
   }
   return context;
-};
-
-const initialState: Meeting = {
-  id: "",
-  userId: "",
-  title: "Untitled Meeting",
-  startTime: new Date(),
-  endTime: new Date(),
-  transcript: "",
-  summary: "",
-  insights: [],
-  platform: "Unknown",
-  status: "inactive",
-  createdAt: new Date(),
-  updatedAt: new Date(),
 };
 
 export const MeetingStateProvider = ({ children }: { children: React.ReactNode }) => {
@@ -71,14 +57,7 @@ export const MeetingStateProvider = ({ children }: { children: React.ReactNode }
 
     setIsCreatingMeeting(true);
     try {
-      const newMeeting = await createMeetingAPI({
-        userId: user.id,
-        title: "Untitled Meeting",
-        startTime: new Date(),
-        platform: platform,
-        status: "active",
-      });
-
+      const newMeeting = await createMeeting(user.id, platform);
       setActiveMeeting(newMeeting);
       setCallStartTime(Date.now());
       toast({
@@ -110,14 +89,13 @@ export const MeetingStateProvider = ({ children }: { children: React.ReactNode }
     setSavingProgress(50);
 
     try {
-      const endTime = new Date();
-      await endMeetingAPI(activeMeeting.id, {
-        endTime: endTime,
-        transcript: transcript,
-        summary: summary,
-        insights: insights,
-        status: "completed",
-      });
+      // Complete the meeting with transcript and summary
+      await completeMeeting(activeMeeting.id, transcript, summary);
+      
+      // Insert insights if any
+      if (insights && insights.length > 0) {
+        await insertMeetingInsights(activeMeeting.id, insights);
+      }
 
       setLastSaved(new Date());
       setSavingProgress(100);
@@ -138,7 +116,7 @@ export const MeetingStateProvider = ({ children }: { children: React.ReactNode }
 
   const updateMeeting = useCallback(async (meetingId: string, updates: Partial<Meeting>) => {
     try {
-      await updateMeetingAPI(meetingId, updates);
+      await updateMeetingInDb(meetingId, updates);
       setActiveMeeting((prev) => {
         if (prev && prev.id === meetingId) {
           return { ...prev, ...updates };
@@ -161,9 +139,12 @@ export const MeetingStateProvider = ({ children }: { children: React.ReactNode }
 
   const getMeeting = useCallback(async (meetingId: string) => {
     try {
-      const meeting = await getMeetingAPI(meetingId);
-      setActiveMeeting(meeting);
-      return meeting;
+      const { meeting } = await getMeetingWithInsights(meetingId);
+      if (meeting) {
+        setActiveMeeting(meeting);
+        return meeting;
+      }
+      throw new Error("Meeting not found");
     } catch (error) {
       console.error("Error getting meeting:", error);
       toast({
@@ -182,7 +163,7 @@ export const MeetingStateProvider = ({ children }: { children: React.ReactNode }
     savingProgress,
     lastSaved,
     callStartTime,
-    isCallActive: !!(activeMeeting && activeMeeting.status === 'active'), // Add this computed property
+    isCallActive: !!(activeMeeting && activeMeeting.status === 'active'),
     startMeeting,
     endMeeting,
     updateMeeting,
