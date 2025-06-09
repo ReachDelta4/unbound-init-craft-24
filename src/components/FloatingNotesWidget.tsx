@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback } from "react";
 import { X, StickyNote } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -100,7 +99,7 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
         {!isExpanded ? (
           // Collapsed State
           <div
-            className="bg-card/90 backdrop-blur-sm border border-border/50 rounded-[20px] h-full flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 hover:bg-card/95"
+            className="bg-card/90 backdrop-blur-sm border-2 border-border rounded-[20px] h-full flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 hover:bg-card/95"
             onClick={handleToggleExpanded}
           >
             <StickyNote size={16} className="text-muted-foreground" />
@@ -108,10 +107,10 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
           </div>
         ) : (
           // Expanded State
-          <div className="bg-card/95 backdrop-blur-sm border border-border rounded-xl shadow-2xl h-full flex flex-col overflow-hidden">
+          <div className="bg-card/95 backdrop-blur-sm border-2 border-border rounded-xl shadow-2xl h-full flex flex-col overflow-hidden">
             {/* Header */}
             <div 
-              className="flex items-center justify-between p-3 border-b border-border cursor-grab"
+              className="flex items-center justify-between p-3 border-b-2 border-border cursor-grab"
               onMouseDown={handleMouseDown}
             >
               <h3 className="text-sm font-medium">Notes & Agenda</h3>
@@ -129,7 +128,7 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
             <div className="flex-1 overflow-hidden">
               <Tabs defaultValue="checklist" className="w-full h-full flex flex-col">
                 <div className="px-3 pt-2">
-                  <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsList className="grid w-full grid-cols-2 h-8 border border-border">
                     <TabsTrigger value="checklist" className="text-xs">
                       ✅ Checklist
                     </TabsTrigger>

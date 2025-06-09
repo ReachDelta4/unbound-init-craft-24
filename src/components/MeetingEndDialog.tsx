@@ -211,10 +211,9 @@ const MeetingEndDialog = ({
     <Dialog 
       open={isOpen} 
       onOpenChange={(open) => {
-        // Prevent dialog from being closed - it can only be closed programmatically after saving
+        // Allow dialog to be closed if not saving
         if (!open && !isSaving) {
-          // Do nothing - dialog remains open
-          // This effectively prevents the dialog from being closed with Escape or clicking outside
+          onClose();
         }
       }}
     >
@@ -342,11 +341,19 @@ const MeetingEndDialog = ({
           </Tabs>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex flex-col sm:flex-row gap-2">
+          <Button 
+            variant="outline"
+            onClick={onClose} 
+            disabled={isSaving}
+            className="w-full sm:w-auto"
+          >
+            Discard
+          </Button>
           <Button 
             onClick={handleSave} 
             disabled={isSaving}
-            className="relative w-full"
+            className="w-full sm:w-auto"
           >
             {isSaving ? "Saving..." : "Save Meeting"}
           </Button>

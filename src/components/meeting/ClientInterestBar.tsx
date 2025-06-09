@@ -1,19 +1,31 @@
-
 import React from "react";
-import { Progress } from "@/components/ui/progress";
 
 interface ClientInterestBarProps {
   interestLevel: number;
 }
 
 const ClientInterestBar = ({ interestLevel }: ClientInterestBarProps) => {
+  // Calculate color based on interest level
+  const getColor = () => {
+    if (interestLevel >= 80) return "bg-green-500";
+    if (interestLevel >= 60) return "bg-emerald-500";
+    if (interestLevel >= 40) return "bg-amber-500";
+    if (interestLevel >= 20) return "bg-orange-500";
+    return "bg-red-500";
+  };
+
   return (
-    <div className="bg-card/95 backdrop-blur-sm border border-border/50 rounded-lg p-3 w-full">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-medium text-foreground">Client Interest</h3>
-        <span className="text-xs font-semibold text-primary">{interestLevel}%</span>
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center">
+        <span className="text-xs font-medium">Client Interest</span>
+        <span className="text-xs font-mono">{interestLevel}%</span>
       </div>
-      <Progress value={interestLevel} className="h-1.5" />
+      <div className="h-2.5 bg-muted rounded-full overflow-hidden border border-border">
+        <div
+          className={`h-full ${getColor()} rounded-full`}
+          style={{ width: `${interestLevel}%` }}
+        />
+      </div>
     </div>
   );
 };

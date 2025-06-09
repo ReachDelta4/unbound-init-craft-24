@@ -42,56 +42,58 @@ export const useWebRTC = () => {
     // Always stop any existing screen share before starting a new one
     stopScreenShareRef.current();
     try {
-      // Explicitly request system audio when getting display media
+      console.log("Requesting screen capture...");
+      
+      // Use simple getDisplayMedia call first for maximum compatibility
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: {
-          // Explicitly request system audio
-          // This enables capturing the audio of the screen being shared
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          // In some browsers, 'mediaSource' is used to specify system audio
-          // @ts-expect-error - Some browsers support this property
-          mediaSource: 'desktop'
-        }
+        audio: true
       });
       
-      // Check if system audio was successfully captured
-      const hasSystemAudio = screenStream.getAudioTracks().length > 0;
+      // Check if video track exists and is active
+      const videoTracks = screenStream.getVideoTracks();
+      if (videoTracks.length === 0) {
+        console.warn('No video track found in screen share, but continuing anyway');
+      }
+      
+      // Log video track information for debugging
+      console.log('Screen share video tracks:', videoTracks.map(track => ({
+        label: track.label,
+        enabled: track.enabled,
+        readyState: track.readyState
+      })));
+      
+      // Log audio track information for debugging
+      console.log('Screen share audio tracks:', screenStream.getAudioTracks().map(track => ({
+        label: track.label,
+        enabled: track.enabled,
+        readyState: track.readyState
+      })));
       
       screenStreamRef.current = screenStream;
-
-      // Always get microphone audio separately
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-
-      // Combine all tracks (video from screen, audio from both screen and mic)
-      const combinedStream = new MediaStream([
-        ...screenStream.getVideoTracks(),
-        ...micStream.getAudioTracks(),
-        ...(hasSystemAudio ? screenStream.getAudioTracks() : [])
-      ]);
-
+      
+      // Save the original stream in case we need it for error recovery
+      const stream = screenStream;
+      
+      // Set state with this stream immediately to avoid delay
       setState({
         isScreenSharing: true,
-        isAudioEnabled: true,
-        stream: combinedStream,
+        isAudioEnabled: screenStream.getAudioTracks().length > 0,
+        stream: stream,
         error: null,
       });
 
-      // Use the latest stopScreenShare for the onended handler
-      screenStream.getVideoTracks()[0].onended = () => {
-        stopScreenShareRef.current();
-      };
+      // Add event listener for when screen sharing ends
+      if (videoTracks.length > 0) {
+        videoTracks[0].onended = () => {
+          console.log("Screen share ended by user");
+          stopScreenShareRef.current();
+        };
+      }
 
-      return combinedStream;
+      return stream;
     } catch (error) {
+      console.error("Screen share error:", error);
       setState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to start screen sharing',

@@ -64,13 +64,16 @@ const Index = () => {
   const tempSummaryRef = useRef("");
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Simple state for controlling the visibility of the controls bar
+  const [showControls, setShowControls] = useState(true);
+
   // Emergency auto-save function
   const setupEmergencyAutoSave = useCallback(() => {
-    if (activeMeeting?.status === 'active' && user) {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
       
+    if (activeMeeting?.status === 'active' && user) {
       autoSaveTimeoutRef.current = setTimeout(async () => {
         try {
           const transcript = tempTranscriptRef.current;
@@ -184,6 +187,11 @@ const Index = () => {
         e.preventDefault();
         e.returnValue = "You have a call in progress or unsaved meeting data. Are you sure you want to leave?";
         
+        // Make sure to stop screen sharing when leaving the page
+        if (isScreenSharing) {
+          stopScreenShare();
+        }
+        
         if (activeMeeting && user) {
           try {
             const transcript = tempTranscriptRef.current;
@@ -265,7 +273,7 @@ const Index = () => {
     }
     
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [activeMeeting, showMeetingDialog, user, endMeeting, updateMeeting, insights, generateSummary, toast]);
+  }, [activeMeeting, showMeetingDialog, user, endMeeting, updateMeeting, insights, generateSummary, toast, isScreenSharing, stopScreenShare]);
 
   useEffect(() => {
     if (activeMeeting && activeMeeting.status === 'active') {
@@ -372,8 +380,9 @@ const Index = () => {
   const handleConfirmEndCall = useCallback(() => {
     setShowEndCallConfirmation(false);
     disconnectMixedAudio();
+    stopScreenShare();
     setShowMeetingDialog(true);
-  }, [disconnectMixedAudio]);
+  }, [disconnectMixedAudio, stopScreenShare]);
 
   useEffect(() => {
     if (!isScreenSharing) {
@@ -390,6 +399,31 @@ const Index = () => {
       console.log('Full Transcript:', fullTranscript);
     }
   }, [liveTranscript, fullTranscript]);
+
+  // Simple effect for autohiding controls
+  useEffect(() => {
+    if (!activeMeeting || activeMeeting.status !== 'active') {
+      setShowControls(true);
+      return;
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const { clientY } = e;
+      const windowHeight = window.innerHeight;
+      
+      if (clientY > windowHeight - 100) {
+        setShowControls(true);
+      } else {
+        setShowControls(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [activeMeeting]);
 
   const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string): Promise<void> => {
     if (!activeMeeting && !user) return;
@@ -496,7 +530,11 @@ const Index = () => {
             }
           }}
           stream={stream}
-          className="h-[calc(100vh-56px)]"
+          className={`transition-all duration-300 ${
+            isCallActive && !showControls 
+              ? "h-screen" 
+              : "h-[calc(100vh-56px)]"
+          }`}
         />
         
         <CallTimer
@@ -504,7 +542,22 @@ const Index = () => {
           onDurationChange={setUiCallDuration}
         />
         
-        <div className="bg-card border-t border-border fixed bottom-0 left-0 right-0 py-2 px-4 shadow-md z-10">
+        {/* Indicator when controls are hidden */}
+        {isCallActive && !showControls && (
+          <div 
+            className="fixed bottom-0 left-0 right-0 h-1 bg-primary/20 z-10 cursor-pointer"
+            onClick={() => setShowControls(true)}
+          >
+            <div className="w-20 h-1 mx-auto bg-primary/40 rounded-t"></div>
+          </div>
+        )}
+        
+        {/* Controls bar with autohide */}
+        <div 
+          className={`bg-card border-t border-border fixed bottom-0 left-0 right-0 py-2 px-4 shadow-md z-10 transition-transform duration-300 ${
+            isCallActive && !showControls ? 'translate-y-full' : 'translate-y-0'
+          }`}
+        >
           <MeetingControls
             isCallActive={isCallActive}
             callType={callType}
@@ -536,7 +589,12 @@ const Index = () => {
       
       <MeetingEndDialog
         isOpen={showMeetingDialog}
-        onClose={() => setShowMeetingDialog(false)}
+        onClose={() => {
+          setShowMeetingDialog(false);
+          stopScreenShare();
+          setUiCallDuration(0);
+          setActiveMeeting(null);
+        }}
         onSave={handleSaveMeeting}
         transcript={fullTranscript ? formatTranscript(fullTranscript.split('\n').filter(Boolean)) : ""}
         summary={generateSummary()}
@@ -553,11 +611,7 @@ const Index = () => {
       <EndCallConfirmationDialog
         isOpen={showEndCallConfirmation}
         onClose={() => setShowEndCallConfirmation(false)}
-        onConfirm={() => {
-          setShowEndCallConfirmation(false);
-          disconnectMixedAudio();
-          setShowMeetingDialog(true);
-        }}
+        onConfirm={handleConfirmEndCall}
       />
     </MainLayout>
   );

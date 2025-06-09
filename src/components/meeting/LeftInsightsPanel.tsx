@@ -1,13 +1,30 @@
-
 import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface LeftInsightsPanelProps {
   isCallActive: boolean;
-  emotions: { emotion: string; level: number }[];
+  emotions: Array<{ emotion: string; level: number }>;
   painPoints: string[];
 }
 
 const LeftInsightsPanel = ({ isCallActive, emotions, painPoints }: LeftInsightsPanelProps) => {
+  // Sample data for demonstration
+  const sampleEmotions = [
+    { emotion: "Interest", level: 80 },
+    { emotion: "Confusion", level: 30 },
+    { emotion: "Satisfaction", level: 60 },
+  ];
+
+  const samplePainPoints = [
+    "Current process is too manual and time-consuming",
+    "Lack of visibility into team productivity",
+    "Integration issues with existing tools",
+  ];
+
+  // Use provided data or fallback to sample data
+  const displayEmotions = emotions.length > 0 ? emotions : sampleEmotions;
+  const displayPainPoints = painPoints.length > 0 ? painPoints : samplePainPoints;
+
   if (!isCallActive) {
     return (
       <div className="h-full flex items-center justify-center text-muted-foreground">
@@ -17,47 +34,47 @@ const LeftInsightsPanel = ({ isCallActive, emotions, painPoints }: LeftInsightsP
   }
 
   return (
-    <div className="h-full space-y-4">
-      {/* Client Emotions */}
-      <div className="bg-card/95 backdrop-blur-sm border border-border/50 rounded-lg p-4">
-        <h3 className="text-sm font-medium mb-3 text-indigo-400">Client Emotions</h3>
-        <div className="space-y-3">
-          {emotions.length > 0 ? (
-            emotions.map((item, index) => (
-              <div key={index}>
-                <div className="flex justify-between mb-1">
-                  <span className="text-xs">{item.emotion}</span>
-                  <span className="text-xs font-medium">{item.level}%</span>
+    <div className="p-3 space-y-4">
+      {/* Emotions Card */}
+      <Card className="border-2 border-border shadow-sm">
+        <CardHeader className="pb-2 border-b border-border">
+          <CardTitle className="text-sm font-medium">Client Emotions</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="space-y-3">
+            {displayEmotions.map((item, index) => (
+              <div key={index} className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <span>{item.emotion}</span>
+                  <span className="font-mono">{item.level}%</span>
                 </div>
-                <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                <div className="h-2 bg-muted rounded-full overflow-hidden border border-border/50">
                   <div 
-                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-500" 
-                    style={{ width: `${item.level}%` }}
+                    className="h-full bg-primary rounded-full" 
+                    style={{ width: `${item.level}%` }} 
                   />
                 </div>
               </div>
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground">No emotions detected yet</p>
-          )}
-        </div>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Pain Points */}
-      <div className="bg-card/95 backdrop-blur-sm border border-border/50 rounded-lg p-4">
-        <h3 className="text-sm font-medium mb-3 text-red-400">Pain Points</h3>
-        <div className="space-y-2">
-          {painPoints.length > 0 ? (
-            painPoints.map((point, index) => (
-              <div key={index} className="text-xs p-2 bg-red-500/10 border border-red-500/20 rounded">
+      {/* Pain Points Card */}
+      <Card className="border-2 border-border shadow-sm">
+        <CardHeader className="pb-2 border-b border-border">
+          <CardTitle className="text-sm font-medium">Pain Points</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <ul className="space-y-2 text-sm">
+            {displayPainPoints.map((point, index) => (
+              <li key={index} className="p-2 bg-muted rounded border border-border/50">
                 {point}
-              </div>
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground">No pain points identified yet</p>
-          )}
-        </div>
-      </div>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 };

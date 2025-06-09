@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import FloatingNotesWidget from "@/components/FloatingNotesWidget";
@@ -15,6 +14,9 @@ import ResizableScreenShare from "./ResizableScreenShare";
 import LiveTranscriptDisplay from "./LiveTranscriptDisplay";
 import LeftInsightsPanel from "./LeftInsightsPanel";
 import RightInsightsPanel from "./RightInsightsPanel";
+import Phi3Insights from "./Phi3Insights";
+import Phi3ModelLoader from "./Phi3ModelLoader";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -52,12 +54,29 @@ const MeetingWorkspace = ({
   const currentEmotion = "Interested";
   const currentStage = "Discovery";
   const aiResponse = "Ask about their current workflow and pain points to better understand their needs.";
+  
+  // State for Phi-3 model loading
+  const [phi3ModelLoaded, setPhi3ModelLoaded] = useState(false);
+
+  // Debug stream information when it changes
+  useEffect(() => {
+    if (stream) {
+      console.log('MeetingWorkspace received stream:', {
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+        videoActive: stream.getVideoTracks().some(track => track.enabled && track.readyState === 'live'),
+      });
+    }
+  }, [stream]);
+
+  // Always show screen share preview when call is active and stream exists
+  const isScreenShareActive = isCallActive && !!stream;
 
   return (
     <div className={cn("h-full overflow-hidden relative", className)}>
       <div className="h-full flex flex-col">
         {/* Compact Top Section */}
-        <div className="flex-shrink-0 p-3 space-y-2">
+        <div className="flex-shrink-0 p-3 space-y-2 border-b border-border">
           {/* First row: Client Interest (20%), Client Emotion, Call Stage, User Controls */}
           <div className="flex gap-3 items-center">
             <div className="w-1/5">
@@ -83,13 +102,13 @@ const MeetingWorkspace = ({
 
         {/* Main Content Area */}
         <div className="flex-1 px-3 pb-3 min-h-0">
-          <ResizablePanelGroup direction="horizontal" className="h-full">
+          <ResizablePanelGroup direction="horizontal" className="h-full border border-border rounded-lg overflow-hidden">
             {/* Left Side Panel - Emotions & Pain Points */}
             <ResizablePanel 
               defaultSize={20} 
               minSize={15}
               maxSize={25}
-              className="pr-2"
+              className="pr-2 border-r border-border"
             >
               <ScrollArea className="h-full">
                 <LeftInsightsPanel 
@@ -100,50 +119,72 @@ const MeetingWorkspace = ({
               </ScrollArea>
             </ResizablePanel>
 
-            <ResizableHandle withHandle />
+            <ResizableHandle withHandle className="bg-border" />
 
             {/* Center Panel - Screen Share & Transcript */}
             <ResizablePanel 
               defaultSize={60} 
               minSize={40}
-              className="px-2"
+              className="px-2 border-x border-border"
             >
-              <div className="h-full flex flex-col space-y-3">
-                {/* Resizable Screen Share Preview */}
-                <div className="flex-shrink-0">
-                  <ResizableScreenShare 
-                    stream={stream} 
-                    isActive={isCallActive && !!stream} 
-                  />
+              <ScrollArea className="h-full">
+                <div className="flex flex-col space-y-3 py-2">
+                  {/* Resizable Screen Share Preview */}
+                  <div className="flex-shrink-0">
+                    <ResizableScreenShare 
+                      stream={stream} 
+                      isActive={isScreenShareActive} 
+                    />
+                  </div>
+                  
+                  {/* Live Transcript Area */}
+                  <div className="min-h-[200px]">
+                    <LiveTranscriptDisplay 
+                      liveText={realtimeText}
+                      transcriptHistory={fullSentences}
+                    />
+                  </div>
                 </div>
-                
-                {/* Live Transcript Area - Takes remaining space */}
-                <div className="flex-1 min-h-0">
-                  <LiveTranscriptDisplay 
-                    liveText={realtimeText}
-                    transcriptHistory={fullSentences}
-                  />
-                </div>
-              </div>
+              </ScrollArea>
             </ResizablePanel>
 
-            <ResizableHandle withHandle />
+            <ResizableHandle withHandle className="bg-border" />
 
-            {/* Right Side Panel - Objections & Recommendations */}
+            {/* Right Side Panel - Insights Tabs */}
             <ResizablePanel 
               defaultSize={20} 
               minSize={15}
               maxSize={25}
-              className="pl-2"
+              className="pl-2 border-l border-border"
             >
-              <ScrollArea className="h-full">
-                <RightInsightsPanel 
-                  isCallActive={isCallActive}
-                  objections={insights.objections}
-                  recommendations={insights.recommendations}
-                  nextActions={insights.nextActions}
-                />
-              </ScrollArea>
+              <Tabs defaultValue="traditional" className="h-full flex flex-col">
+                <TabsList className="grid grid-cols-2 mb-2">
+                  <TabsTrigger value="traditional">Traditional</TabsTrigger>
+                  <TabsTrigger value="phi3">Phi-3</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="traditional" className="flex-1 overflow-hidden">
+                  <ScrollArea className="h-full">
+                    <RightInsightsPanel 
+                      isCallActive={isCallActive}
+                      objections={insights.objections}
+                      recommendations={insights.recommendations}
+                      nextActions={insights.nextActions}
+                    />
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="phi3" className="flex-1 overflow-hidden">
+                  {!phi3ModelLoaded ? (
+                    <Phi3ModelLoader onLoadComplete={() => setPhi3ModelLoaded(true)} />
+                  ) : (
+                    <Phi3Insights 
+                      liveTranscript={realtimeText} 
+                      fullTranscript={transcript}
+                    />
+                  )}
+                </TabsContent>
+              </Tabs>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>
