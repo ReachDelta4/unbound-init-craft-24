@@ -1,8 +1,9 @@
+
 import React from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import InsightsPanel from "@/components/InsightsPanel";
-import NotesPanel from "@/components/NotesPanel";
+import FloatingNotesWidget from "@/components/FloatingNotesWidget";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
 import { cn } from "@/lib/utils";
 
@@ -37,12 +38,12 @@ const MeetingWorkspace = ({
   className
 }: MeetingWorkspaceProps) => {
   return (
-    <div className={cn("flex-grow overflow-hidden", className)}>
+    <div className={cn("flex-grow overflow-hidden relative", className)}>
       <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Transcript Panel - Left Side */}
         <ResizablePanel 
-          defaultSize={30} 
-          minSize={20}
+          defaultSize={50} 
+          minSize={30}
           className="bg-card p-4"
         >
           <TranscriptPanel 
@@ -58,9 +59,9 @@ const MeetingWorkspace = ({
 
         <ResizableHandle withHandle />
 
-        {/* Insights Panel - Center */}
+        {/* Insights Panel - Right Side */}
         <ResizablePanel 
-          defaultSize={40} 
+          defaultSize={50} 
           minSize={30}
           className="bg-background p-4"
         >
@@ -70,18 +71,10 @@ const MeetingWorkspace = ({
             fullSentences={fullSentences}
           />
         </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
-        {/* Notes Panel - Right Side */}
-        <ResizablePanel 
-          defaultSize={30} 
-          minSize={20}
-          className="bg-card p-4"
-        >
-          <NotesPanel isCallActive={isCallActive} />
-        </ResizablePanel>
       </ResizablePanelGroup>
+
+      {/* Floating Notes Widget */}
+      <FloatingNotesWidget isCallActive={isCallActive} />
     </div>
   );
 };
