@@ -13,7 +13,6 @@ import MeetingWorkspace from "@/components/meeting/MeetingWorkspace";
 import CallTimer from "@/components/meeting/CallTimer";
 import { useSampleData } from "@/hooks/useSampleData";
 import { useWebRTC } from "@/hooks/useWebRTC";
-import ScreenSharePreview from "@/components/meeting/ScreenSharePreview";
 import { useMixedAudioWebSocket } from "@/hooks/useMixedAudioWebSocket";
 import WebSocketConnectionPopup from "@/components/meeting/WebSocketConnectionPopup";
 
@@ -64,6 +63,38 @@ const Index = () => {
   const tempTranscriptRef = useRef("");
   const tempSummaryRef = useRef("");
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Emergency auto-save function
+  const setupEmergencyAutoSave = useCallback(() => {
+    if (activeMeeting?.status === 'active' && user) {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      
+      autoSaveTimeoutRef.current = setTimeout(async () => {
+        try {
+          const transcript = tempTranscriptRef.current;
+          const summary = tempSummaryRef.current || generateSummary();
+          
+          const insightsForSaving = [
+            { type: 'emotions', data: insights.emotions },
+            { type: 'painPoints', data: insights.painPoints },
+            { type: 'objections', data: insights.objections },
+            { type: 'recommendations', data: insights.recommendations },
+            { type: 'nextActions', data: insights.nextActions }
+          ];
+          
+          await endMeeting(transcript, summary, insightsForSaving);
+          console.log("Auto-saved meeting backup at", new Date().toISOString());
+          
+          setupEmergencyAutoSave();
+        } catch (error) {
+          console.error("Failed to auto-save meeting:", error);
+          setupEmergencyAutoSave();
+        }
+      }, 120000);
+    }
+  }, [activeMeeting?.status, user, endMeeting, insights, generateSummary]);
 
   const extractAudioStreams = useCallback((combinedStream: MediaStream) => {
     const audioTracks = combinedStream.getAudioTracks();
@@ -138,103 +169,14 @@ const Index = () => {
   }, [activeMeeting?.status, generateSummary]);
 
   useEffect(() => {
-    if (activeMeeting?.status === 'active' && user) {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-      
-      autoSaveTimeoutRef.current = setTimeout(async () => {
-        try {
-          const transcript = tempTranscriptRef.current;
-          const summary = tempSummaryRef.current || generateSummary();
-          
-          const insightsForSaving = [
-            { type: 'emotions', data: insights.emotions },
-            { type: 'painPoints', data: insights.painPoints },
-            { type: 'objections', data: insights.objections },
-            { type: 'recommendations', data: insights.recommendations },
-            { type: 'nextActions', data: insights.nextActions }
-          ];
-          
-          await endMeeting(transcript, summary, insightsForSaving);
-          console.log("Auto-saved meeting backup at", new Date().toISOString());
-          
-          setupEmergencyAutoSave();
-        } catch (error) {
-          console.error("Failed to auto-save meeting:", error);
-          setupEmergencyAutoSave();
-        }
-      }, 120000);
-    }
-  }, [activeMeeting?.status, user, endMeeting, insights, generateSummary, tempTranscriptRef, tempSummaryRef]);
-
-  useEffect(() => {
-    const setupEmergencyAutoSave = () => {
-      if (activeMeeting?.status === 'active' && user) {
-        if (autoSaveTimeoutRef.current) {
-          clearTimeout(autoSaveTimeoutRef.current);
-        }
-        
-        autoSaveTimeoutRef.current = setTimeout(async () => {
-          try {
-            const transcript = tempTranscriptRef.current;
-            const summary = tempSummaryRef.current || generateSummary();
-            
-            const insightsForSaving = [
-              { type: 'emotions', data: insights.emotions },
-              { type: 'painPoints', data: insights.painPoints },
-              { type: 'objections', data: insights.objections },
-              { type: 'recommendations', data: insights.recommendations },
-              { type: 'nextActions', data: insights.nextActions }
-            ];
-            
-            await endMeeting(transcript, summary, insightsForSaving);
-            console.log("Auto-saved meeting backup at", new Date().toISOString());
-            
-            setupEmergencyAutoSave();
-          } catch (error) {
-            console.error("Failed to auto-save meeting:", error);
-            setupEmergencyAutoSave();
-          }
-        }, 120000);
-      }
-    };
-    
     setupEmergencyAutoSave();
-    
-    if (showMeetingDialog && activeMeeting?.status === 'active' && user) {
-      const immediateBackup = async () => {
-        try {
-          const transcript = tempTranscriptRef.current;
-          const summary = tempSummaryRef.current || generateSummary();
-          
-          const insightsForSaving = [
-            { type: 'emotions', data: insights.emotions },
-            { type: 'painPoints', data: insights.painPoints },
-            { type: 'objections', data: insights.objections },
-            { type: 'recommendations', data: insights.recommendations },
-            { type: 'nextActions', data: insights.nextActions }
-          ];
-          
-          const meetingId = await endMeeting(transcript, summary, insightsForSaving);
-          if (meetingId) {
-            await updateMeeting(meetingId, { title: "Auto-saved Meeting" });
-            console.log("Immediate backup saved at", new Date().toISOString());
-          }
-        } catch (error) {
-          console.error("Failed to create immediate backup:", error);
-        }
-      };
-      
-      immediateBackup();
-    }
     
     return () => {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [activeMeeting?.status, user, endMeeting, insights, generateSummary, showMeetingDialog, updateMeeting, tempTranscriptRef, tempSummaryRef]);
+  }, [setupEmergencyAutoSave]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -323,7 +265,7 @@ const Index = () => {
     }
     
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [activeMeeting, showMeetingDialog, user, endMeeting, updateMeeting, insights, generateSummary, tempTranscriptRef, tempSummaryRef, toast]);
+  }, [activeMeeting, showMeetingDialog, user, endMeeting, updateMeeting, insights, generateSummary, toast]);
 
   useEffect(() => {
     if (activeMeeting && activeMeeting.status === 'active') {
@@ -449,7 +391,7 @@ const Index = () => {
     }
   }, [liveTranscript, fullTranscript]);
 
-  const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string) => {
+  const handleSaveMeeting = useCallback(async (title: string, transcript: string, summary: string): Promise<void> => {
     if (!activeMeeting && !user) return;
     try {
       const transcriptToSave = transcript || tempTranscriptRef.current || "";
@@ -469,7 +411,7 @@ const Index = () => {
       try {
         const meetingId = await Promise.race([
           endMeeting(transcriptToSave, summaryToSave, insightsForSaving),
-          new Promise((_, reject) => {
+          new Promise<string | null>((_, reject) => {
             abortController.signal.addEventListener('abort', () => {
               reject(new Error('Meeting save timeout'));
             });
@@ -595,49 +537,7 @@ const Index = () => {
       <MeetingEndDialog
         isOpen={showMeetingDialog}
         onClose={() => setShowMeetingDialog(false)}
-        onSave={(title, transcript, summary) => {
-          const transcriptToSave = transcript || tempTranscriptRef.current || "";
-          const summaryToSave = summary || tempSummaryRef.current || "";
-          
-          const insightsForSaving = [
-            { type: 'emotions', data: insights.emotions },
-            { type: 'painPoints', data: insights.painPoints },
-            { type: 'objections', data: insights.objections },
-            { type: 'recommendations', data: insights.recommendations },
-            { type: 'nextActions', data: insights.nextActions }
-          ];
-          
-          endMeeting(transcriptToSave, summaryToSave, insightsForSaving)
-            .then(meetingId => {
-              if (meetingId) {
-                updateMeeting(meetingId, { title });
-                toast({
-                  title: "Meeting saved",
-                  description: "Your meeting has been successfully saved.",
-                });
-              }
-            })
-            .catch(error => {
-              console.error("Error saving meeting:", error);
-              toast({
-                title: "Error saving meeting",
-                description: "There was a problem saving your meeting data. Please try again.",
-                variant: "destructive"
-              });
-            })
-            .finally(() => {
-              stopScreenShare();
-              setShowMeetingDialog(false);
-              setUiCallDuration(0);
-              setActiveMeeting(null);
-              tempTranscriptRef.current = "";
-              tempSummaryRef.current = "";
-              if (autoSaveTimeoutRef.current) {
-                clearTimeout(autoSaveTimeoutRef.current);
-                autoSaveTimeoutRef.current = null;
-              }
-            });
-        }}
+        onSave={handleSaveMeeting}
         transcript={fullTranscript ? formatTranscript(fullTranscript.split('\n').filter(Boolean)) : ""}
         summary={generateSummary()}
         insights={[

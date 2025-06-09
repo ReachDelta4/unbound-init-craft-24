@@ -1,6 +1,5 @@
 
 import React, { useRef, useEffect, useState } from "react";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 interface ResizableScreenShareProps {
   stream: MediaStream | null;
@@ -9,7 +8,9 @@ interface ResizableScreenShareProps {
 
 const ResizableScreenShare = ({ stream, isActive }: ResizableScreenShareProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 640, height: 360 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(300);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -17,9 +18,36 @@ const ResizableScreenShare = ({ stream, isActive }: ResizableScreenShareProps) =
     }
   }, [stream]);
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    
+    const startY = e.clientY;
+    const startHeight = height;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = e.clientY - startY;
+      const newHeight = Math.max(200, Math.min(600, startHeight + deltaY));
+      setHeight(newHeight);
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   if (!isActive || !stream) {
     return (
-      <div className="flex-1 bg-card/50 border border-border/50 rounded-lg flex items-center justify-center">
+      <div 
+        ref={containerRef}
+        className="bg-card/50 border border-border/50 rounded-lg flex items-center justify-center relative"
+        style={{ height: `${height}px` }}
+      >
         <div className="text-center text-muted-foreground">
           <div className="w-16 h-16 mx-auto mb-4 opacity-50">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,23 +57,36 @@ const ResizableScreenShare = ({ stream, isActive }: ResizableScreenShareProps) =
           </div>
           <p>Screen share preview will appear here</p>
         </div>
+        {/* Resize handle */}
+        <div 
+          className={`absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-border/30 hover:bg-border/60 transition-colors ${isResizing ? 'bg-primary/50' : ''}`}
+          onMouseDown={handleMouseDown}
+        />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 bg-black rounded-lg overflow-hidden border border-border/50 shadow-lg">
+    <div 
+      ref={containerRef}
+      className="bg-black rounded-lg overflow-hidden border border-border/50 shadow-lg relative"
+      style={{ height: `${height}px` }}
+    >
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
         className="w-full h-full object-contain"
-        style={{ minHeight: '300px', maxHeight: '500px' }}
       />
       <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
         Screen Share Preview
       </div>
+      {/* Resize handle */}
+      <div 
+        className={`absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-transparent hover:bg-white/20 transition-colors ${isResizing ? 'bg-primary/50' : ''}`}
+        onMouseDown={handleMouseDown}
+      />
     </div>
   );
 };

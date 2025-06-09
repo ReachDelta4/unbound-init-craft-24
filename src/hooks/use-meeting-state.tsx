@@ -1,202 +1,132 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Meeting, MeetingInsight } from "./meetings/types";
-import {
-  createMeeting,
-  updateMeetingInDb,
-  completeMeeting,
-  insertMeetingInsights,
-  getMeetingWithInsights
-} from "./meetings/meetings-db";
+import { Meeting } from "@/types";
+import { createMeeting as createMeetingAPI, endMeeting as endMeetingAPI, getMeeting as getMeetingAPI, updateMeeting as updateMeetingAPI } from "@/lib/api";
 
-// Fix the TS1205 error by using 'export type'
-export type { Meeting, MeetingInsight } from "./meetings/types";
-export type { MeetingNote } from "./meetings/types";
+interface InsightData {
+  type: string;
+  data: any[];
+}
 
-interface MeetingStateContextProps {
+export interface MeetingStateContextProps {
   activeMeeting: Meeting | null;
   isCreatingMeeting: boolean;
   isSavingMeeting: boolean;
   savingProgress: number;
   lastSaved: Date | null;
-  callStartTime: number | null;
-  startMeeting: (platform: string) => Promise<Meeting | null>;
-  endMeeting: (transcript: string, summary: string, insights: any[]) => Promise<string | null>;
-  updateMeeting: (meetingId: string, data: Partial<Meeting>) => Promise<boolean>;
-  getMeeting: (meetingId: string) => Promise<Meeting | null>;
+  callStartTime: number;
+  isCallActive: boolean; // Add this missing property
+  startMeeting: (platform: string) => Promise<void>;
+  endMeeting: (transcript: string, summary: string, insights: InsightData[]) => Promise<string | null>;
+  updateMeeting: (meetingId: string, updates: Partial<Meeting>) => Promise<void>;
+  getMeeting: (meetingId: string) => Promise<Meeting>;
   setActiveMeeting: React.Dispatch<React.SetStateAction<Meeting | null>>;
-  setCallStartTime: React.Dispatch<React.SetStateAction<number | null>>;
+  setCallStartTime: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const MeetingStateContext = createContext<MeetingStateContextProps | undefined>(undefined);
 
-export const MeetingStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const { toast } = useToast();
+export const useMeetingState = () => {
+  const context = useContext(MeetingStateContext);
+  if (!context) {
+    throw new Error("useMeetingState must be used within a MeetingStateProvider");
+  }
+  return context;
+};
+
+const initialState: Meeting = {
+  id: "",
+  userId: "",
+  title: "Untitled Meeting",
+  startTime: new Date(),
+  endTime: new Date(),
+  transcript: "",
+  summary: "",
+  insights: [],
+  platform: "Unknown",
+  status: "inactive",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+export const MeetingStateProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeMeeting, setActiveMeeting] = useState<Meeting | null>(null);
   const [isCreatingMeeting, setIsCreatingMeeting] = useState(false);
   const [isSavingMeeting, setIsSavingMeeting] = useState(false);
   const [savingProgress, setSavingProgress] = useState(0);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [callStartTime, setCallStartTime] = useState<number | null>(null);
+  const [callStartTime, setCallStartTime] = useState(0);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  // Persist meeting state and callStartTime to localStorage
-  useEffect(() => {
-    // Optimization: Only update localStorage when relevant values change
-    const storedMeeting = localStorage.getItem("activeMeeting");
-    const storedCallTime = localStorage.getItem("callStartTime");
-    
-    const currentMeetingJson = activeMeeting ? JSON.stringify(activeMeeting) : null;
-    const currentCallTimeStr = callStartTime?.toString() ?? null;
-    
-    // Only update localStorage if values have changed
-    if (currentMeetingJson !== storedMeeting) {
-      if (activeMeeting) {
-        localStorage.setItem("activeMeeting", currentMeetingJson as string);
-      } else {
-        localStorage.removeItem("activeMeeting");
-      }
-    }
-    
-    if (currentCallTimeStr !== storedCallTime) {
-      if (callStartTime) {
-        localStorage.setItem("callStartTime", currentCallTimeStr as string);
-      } else {
-        localStorage.removeItem("callStartTime");
-      }
-    }
-  }, [activeMeeting, callStartTime]);
-
-  // Restore meeting state and callStartTime from localStorage on mount
-  useEffect(() => {
-    // This effect restores meeting state from localStorage, handling corrupted data gracefully.
-    const stored = localStorage.getItem("activeMeeting");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setActiveMeeting(parsed);
-      } catch (err) {
-        // If parsing fails, clear corrupted localStorage and notify user
-        localStorage.removeItem("activeMeeting");
-        setActiveMeeting(null);
-        toast && toast({
-          title: "Corrupted meeting data",
-          description: "Active meeting data could not be loaded and was reset.",
-          variant: "destructive",
-        });
-      }
-    }
-    const storedStart = localStorage.getItem("callStartTime");
-    if (storedStart) {
-      const parsedStart = Number(storedStart);
-      if (!isNaN(parsedStart)) {
-        setCallStartTime(parsedStart);
-      } else {
-        localStorage.removeItem("callStartTime");
-        setCallStartTime(null);
-        toast && toast({
-          title: "Corrupted call start time",
-          description: "Call start time could not be loaded and was reset.",
-          variant: "destructive",
-        });
-      }
-    }
-  }, []);
-
-  // Create a new meeting when a call starts
   const startMeeting = useCallback(async (platform: string) => {
-    if (!user) return null;
-    try {
-      setIsCreatingMeeting(true);
-      const optimisticMeeting = {
-        id: `temp-${Date.now()}`,
-        user_id: user.id,
-        title: "New Meeting",
-        platform,
-        date: new Date().toISOString(),
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        transcript: null,
-        summary: null
-      } as Meeting;
-      setActiveMeeting(optimisticMeeting);
-      setCallStartTime(Date.now());
-      const createMeetingPromise = new Promise<Meeting | null>(async (resolve) => {
-        try {
-          const meetingData = await createMeeting(user.id, platform);
-          setActiveMeeting(meetingData);
-          resolve(meetingData);
-        } catch (error) {
-          console.error('Error starting meeting:', error);
-          toast({
-            title: "Meeting started with sync issues",
-            description: "Your meeting is active but there was an issue syncing. We'll try again later.",
-            variant: "default",
-          });
-          resolve(null);
-        } finally {
-          setIsCreatingMeeting(false);
-        }
+    if (!user) {
+      toast({
+        title: "Not authenticated",
+        description: "You must be signed in to start a meeting.",
       });
-      createMeetingPromise.catch(console.error);
-      return optimisticMeeting;
+      return;
+    }
+
+    setIsCreatingMeeting(true);
+    try {
+      const newMeeting = await createMeetingAPI({
+        userId: user.id,
+        title: "Untitled Meeting",
+        startTime: new Date(),
+        platform: platform,
+        status: "active",
+      });
+
+      setActiveMeeting(newMeeting);
+      setCallStartTime(Date.now());
+      toast({
+        title: "Meeting started",
+        description: "A new meeting has been started.",
+      });
     } catch (error) {
-      console.error('Error in startMeeting:', error);
-      setIsCreatingMeeting(false);
+      console.error("Error starting meeting:", error);
       toast({
         title: "Failed to start meeting",
-        description: "There was an error creating the meeting record.",
+        description: "There was a problem starting the meeting. Please try again.",
         variant: "destructive",
       });
-      return null;
+    } finally {
+      setIsCreatingMeeting(false);
     }
   }, [user, toast]);
 
-  // End the active meeting
-  const endMeeting = useCallback(async (transcript: string, summary: string, insights: any[]) => {
-    if (!activeMeeting || !user) return null;
-    try {
-      setIsSavingMeeting(true);
-      setSavingProgress(10);
-      const meetingId = activeMeeting.id.startsWith('temp-') ? null : activeMeeting.id;
-      if (!meetingId) {
-        const meetingData = await Promise.race([
-          createMeeting(user.id, activeMeeting.platform || ''),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Meeting creation timeout')), 5000))
-        ]);
-        setSavingProgress(50);
-        if (insights && insights.length > 0) {
-          await Promise.race([
-            insertMeetingInsights(meetingData.id, insights),
-            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Insights creation timeout')), 5000))
-          ]);
-        }
-        setSavingProgress(100);
-        setLastSaved(new Date());
-        setActiveMeeting(null);
-        setCallStartTime(null);
-        return meetingData.id;
-      }
-      setSavingProgress(20);
-      await Promise.race([
-        Promise.all([
-          completeMeeting(meetingId, transcript, summary),
-          insertMeetingInsights(meetingId, insights)
-        ]),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Meeting completion timeout')), 10000))
-      ]);
-      setSavingProgress(100);
-      setLastSaved(new Date());
-      setActiveMeeting(null);
-      setCallStartTime(null);
-      return meetingId;
-    } catch (error) {
-      console.error('Error ending meeting:', error);
+  const endMeeting = useCallback(async (transcript: string, summary: string, insights: InsightData[]): Promise<string | null> => {
+    if (!activeMeeting || !user) {
       toast({
-        title: "Failed to save meeting",
-        description: "There was an error updating the meeting record.",
+        title: "No active meeting",
+        description: "No active meeting found to end.",
+      });
+      return null;
+    }
+
+    setIsSavingMeeting(true);
+    setSavingProgress(50);
+
+    try {
+      const endTime = new Date();
+      await endMeetingAPI(activeMeeting.id, {
+        endTime: endTime,
+        transcript: transcript,
+        summary: summary,
+        insights: insights,
+        status: "completed",
+      });
+
+      setLastSaved(new Date());
+      setSavingProgress(100);
+      return activeMeeting.id;
+    } catch (error) {
+      console.error("Error ending meeting:", error);
+      toast({
+        title: "Failed to end meeting",
+        description: "There was a problem ending the meeting. Please try again.",
         variant: "destructive",
       });
       return null;
@@ -206,63 +136,66 @@ export const MeetingStateProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [activeMeeting, user, toast]);
 
-  const updateMeeting = useCallback(async (meetingId: string, data: Partial<Meeting>) => {
+  const updateMeeting = useCallback(async (meetingId: string, updates: Partial<Meeting>) => {
     try {
-      await updateMeetingInDb(meetingId, data);
-      return true;
+      await updateMeetingAPI(meetingId, updates);
+      setActiveMeeting((prev) => {
+        if (prev && prev.id === meetingId) {
+          return { ...prev, ...updates };
+        }
+        return prev;
+      });
+      toast({
+        title: "Meeting updated",
+        description: "The meeting has been successfully updated.",
+      });
     } catch (error) {
-      console.error('Error updating meeting:', error);
+      console.error("Error updating meeting:", error);
       toast({
         title: "Failed to update meeting",
-        description: "There was an error updating the meeting record.",
+        description: "There was a problem updating the meeting. Please try again.",
         variant: "destructive",
       });
-      return false;
     }
   }, [toast]);
 
   const getMeeting = useCallback(async (meetingId: string) => {
-    return getMeetingWithInsights(meetingId);
-  }, []);
-  
-  // Memoize context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => ({
+    try {
+      const meeting = await getMeetingAPI(meetingId);
+      setActiveMeeting(meeting);
+      return meeting;
+    } catch (error) {
+      console.error("Error getting meeting:", error);
+      toast({
+        title: "Failed to get meeting",
+        description: "There was a problem getting the meeting. Please try again.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  }, [toast]);
+
+  const value: MeetingStateContextProps = {
     activeMeeting,
     isCreatingMeeting,
     isSavingMeeting,
     savingProgress,
     lastSaved,
     callStartTime,
+    isCallActive: !!(activeMeeting && activeMeeting.status === 'active'), // Add this computed property
     startMeeting,
     endMeeting,
     updateMeeting,
     getMeeting,
     setActiveMeeting,
-    setCallStartTime,
-  }), [
-    activeMeeting,
-    isCreatingMeeting,
-    isSavingMeeting,
-    savingProgress,
-    lastSaved,
-    callStartTime,
-    startMeeting,
-    endMeeting,
-    updateMeeting,
-    getMeeting
-  ]);
+    setCallStartTime
+  };
 
   return (
-    <MeetingStateContext.Provider value={contextValue}>
+    <MeetingStateContext.Provider value={value}>
       {children}
     </MeetingStateContext.Provider>
   );
 };
 
-export const useMeetingState = () => {
-  const context = useContext(MeetingStateContext);
-  if (!context) {
-    throw new Error("useMeetingState must be used within a MeetingStateProvider");
-  }
-  return context;
-};
+export default MeetingStateProvider;
