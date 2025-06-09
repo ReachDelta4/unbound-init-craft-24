@@ -11,9 +11,10 @@ interface InsightsData {
 interface InsightsPanelProps {
   isCallActive: boolean;
   insights?: InsightsData;
+  fullSentences?: string[];
 }
 
-const InsightsPanel = ({ isCallActive, insights }: InsightsPanelProps) => {
+const InsightsPanel = ({ isCallActive, insights, fullSentences }: InsightsPanelProps) => {
   // Use provided insights or default empty state
   const displayInsights = insights || {
     emotions: [],
