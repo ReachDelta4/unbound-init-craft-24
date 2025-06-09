@@ -6,10 +6,6 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    headers: {
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Opener-Policy': 'same-origin',
-    },
     host: "::",
     port: 8080,
   },
@@ -21,22 +17,6 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-    },
-  },
-  optimizeDeps: {
-    exclude: ['@xenova/transformers'],
-  },
-  build: {
-    commonjsOptions: {
-      include: [/node_modules/],
-    },
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          onnxruntime: ['onnxruntime-web'],
-          transformers: ['@xenova/transformers'],
-        },
-      },
     },
   },
 }));

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -15,29 +16,6 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@lovable_dev" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-    
-    <!-- ONNX Runtime Web configuration -->
-    <script>
-      // ONNX Runtime Web configuration
-      window.onnxruntimeConfig = {
-        // Enable WebAssembly SIMD for better performance if available
-        enableWasmSIMD: true,
-        // Set the number of threads for WebAssembly multithreading
-        numThreads: 4,
-        // Set the execution providers
-        executionProviders: ['wasm'],
-        // Set the log level (0: verbose, 1: info, 2: warning, 3: error, 4: fatal)
-        logLevel: 2
-      };
-      
-      // Transformers.js configuration
-      window.transformersConfig = {
-        // Cache models in IndexedDB
-        cache: true,
-        // Quantize models for better performance
-        quantized: true
-      };
-    </script>
   </head>
 
   <body>

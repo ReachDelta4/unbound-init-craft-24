@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import FloatingNotesWidget from "@/components/FloatingNotesWidget";
@@ -14,9 +14,6 @@ import ResizableScreenShare from "./ResizableScreenShare";
 import LiveTranscriptDisplay from "./LiveTranscriptDisplay";
 import LeftInsightsPanel from "./LeftInsightsPanel";
 import RightInsightsPanel from "./RightInsightsPanel";
-import Phi3Insights from "./Phi3Insights";
-import Phi3ModelLoader from "./Phi3ModelLoader";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -54,9 +51,6 @@ const MeetingWorkspace = ({
   const currentEmotion = "Interested";
   const currentStage = "Discovery";
   const aiResponse = "Ask about their current workflow and pain points to better understand their needs.";
-  
-  // State for Phi-3 model loading
-  const [phi3ModelLoaded, setPhi3ModelLoaded] = useState(false);
 
   // Debug stream information when it changes
   useEffect(() => {
@@ -150,41 +144,21 @@ const MeetingWorkspace = ({
 
             <ResizableHandle withHandle className="bg-border" />
 
-            {/* Right Side Panel - Insights Tabs */}
+            {/* Right Side Panel - Objections & Recommendations */}
             <ResizablePanel 
               defaultSize={20} 
               minSize={15}
               maxSize={25}
               className="pl-2 border-l border-border"
             >
-              <Tabs defaultValue="traditional" className="h-full flex flex-col">
-                <TabsList className="grid grid-cols-2 mb-2">
-                  <TabsTrigger value="traditional">Traditional</TabsTrigger>
-                  <TabsTrigger value="phi3">Phi-3</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="traditional" className="flex-1 overflow-hidden">
-                  <ScrollArea className="h-full">
-                    <RightInsightsPanel 
-                      isCallActive={isCallActive}
-                      objections={insights.objections}
-                      recommendations={insights.recommendations}
-                      nextActions={insights.nextActions}
-                    />
-                  </ScrollArea>
-                </TabsContent>
-                
-                <TabsContent value="phi3" className="flex-1 overflow-hidden">
-                  {!phi3ModelLoaded ? (
-                    <Phi3ModelLoader onLoadComplete={() => setPhi3ModelLoaded(true)} />
-                  ) : (
-                    <Phi3Insights 
-                      liveTranscript={realtimeText} 
-                      fullTranscript={transcript}
-                    />
-                  )}
-                </TabsContent>
-              </Tabs>
+              <ScrollArea className="h-full">
+                <RightInsightsPanel 
+                  isCallActive={isCallActive}
+                  objections={insights.objections}
+                  recommendations={insights.recommendations}
+                  nextActions={insights.nextActions}
+                />
+              </ScrollArea>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>
