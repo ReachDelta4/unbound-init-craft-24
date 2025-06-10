@@ -295,7 +295,15 @@ const Index = () => {
       setConnectionTimedOut(false);
       setAutoReconnect(true);
       
+      console.log('Index: Starting call with screen share');
       const combinedStream = await startScreenShare();
+      console.log('Index: Screen share started, stream:', {
+        id: combinedStream?.id,
+        videoTracks: combinedStream?.getVideoTracks().length || 0,
+        audioTracks: combinedStream?.getAudioTracks().length || 0,
+        active: combinedStream?.active
+      });
+      
       extractAudioStreams(combinedStream);
       
       if (!micStreamRef.current?.getAudioTracks().length) {
@@ -348,6 +356,7 @@ const Index = () => {
       }, 500);
       
       await startMeeting(callType);
+      console.log('Index: Meeting started successfully');
     } catch (error) {
       console.error('Error starting screen share:', error);
       toast({
@@ -534,6 +543,14 @@ const Index = () => {
   const isCallActive = !!(activeMeeting && activeMeeting.status === 'active');
   const callType = activeMeeting?.platform || null;
   const isUIBlocked = false;
+
+  console.log('Index: Rendering with state:', {
+    isCallActive,
+    hasStream: !!stream,
+    streamActive: stream?.active,
+    isScreenSharing,
+    activeMeetingStatus: activeMeeting?.status
+  });
 
   return (
     <MainLayout>

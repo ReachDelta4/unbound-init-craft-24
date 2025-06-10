@@ -77,14 +77,31 @@ const MeetingWorkspace = ({
 
   // Debug stream information when it changes
   useEffect(() => {
-    if (stream) {
-      console.log('MeetingWorkspace received stream:', {
-        videoTracks: stream.getVideoTracks().length,
-        audioTracks: stream.getAudioTracks().length,
-        videoActive: stream.getVideoTracks().some(track => track.enabled && track.readyState === 'live'),
-      });
+    console.log('MeetingWorkspace: Props changed:', {
+      isCallActive,
+      hasStream: !!stream,
+      streamId: stream?.id,
+      videoTracks: stream?.getVideoTracks().length || 0,
+      audioTracks: stream?.getAudioTracks().length || 0,
+      videoActive: stream?.getVideoTracks().some(track => track.enabled && track.readyState === 'live'),
+      streamActive: stream?.active
+    });
+  }, [stream, isCallActive]);
+
+  // Add debugging for the screen share video props
+  const screenShareProps = {
+    stream,
+    isActive: isCallActive,
+    debugInfo: {
+      hasStream: !!stream,
+      streamActive: stream?.active,
+      isCallActive,
+      videoTracksCount: stream?.getVideoTracks().length || 0,
+      audioTracksCount: stream?.getAudioTracks().length || 0
     }
-  }, [stream]);
+  };
+
+  console.log('MeetingWorkspace: Passing to ScreenShareVideo:', screenShareProps);
 
   return (
     <div className={cn("h-full overflow-hidden relative", className)}>

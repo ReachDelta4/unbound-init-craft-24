@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface WebRTCState {
@@ -22,18 +23,18 @@ export const useWebRTC = () => {
 
   // Stop all tracks in both the combined and original screen stream
   const stopScreenShare = useCallback(() => {
-    console.log("Stopping screen share...");
+    console.log("useWebRTC: Stopping screen share...");
     
     if (state.stream) {
       state.stream.getTracks().forEach(track => {
-        console.log(`Stopping track: ${track.kind} - ${track.label}`);
+        console.log(`useWebRTC: Stopping track: ${track.kind} - ${track.label}`);
         track.stop();
       });
     }
     
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach(track => {
-        console.log(`Stopping original track: ${track.kind} - ${track.label}`);
+        console.log(`useWebRTC: Stopping original track: ${track.kind} - ${track.label}`);
         track.stop();
       });
       screenStreamRef.current = null;
@@ -46,14 +47,14 @@ export const useWebRTC = () => {
       error: null,
     });
     
-    console.log("Screen share stopped");
+    console.log("useWebRTC: Screen share stopped");
   }, [state.stream]);
   stopScreenShareRef.current = stopScreenShare;
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      console.log("WebRTC hook unmounting, cleaning up streams");
+      console.log("useWebRTC: Hook unmounting, cleaning up streams");
       stopScreenShareRef.current();
     };
   }, []);
@@ -62,69 +63,106 @@ export const useWebRTC = () => {
     // Always stop any existing screen share before starting a new one
     stopScreenShareRef.current();
     try {
-      console.log("Requesting screen capture...");
+      console.log("useWebRTC: Requesting screen capture...");
       
-      // Use simple getDisplayMedia call first for maximum compatibility
+      // Use enhanced getDisplayMedia call for better stream quality
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true
+        video: {
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: 30, max: 30 }
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
       });
       
       // Check if video track exists and is active
       const videoTracks = screenStream.getVideoTracks();
+      const audioTracks = screenStream.getAudioTracks();
+      
+      console.log('useWebRTC: Screen share stream created:', {
+        id: screenStream.id,
+        active: screenStream.active,
+        videoTracks: videoTracks.length,
+        audioTracks: audioTracks.length,
+        videoTrackStates: videoTracks.map(t => ({
+          label: t.label,
+          enabled: t.enabled,
+          readyState: t.readyState,
+          kind: t.kind
+        })),
+        audioTrackStates: audioTracks.map(t => ({
+          label: t.label,
+          enabled: t.enabled,
+          readyState: t.readyState,
+          kind: t.kind
+        }))
+      });
+      
       if (videoTracks.length === 0) {
-        console.warn('No video track found in screen share, but continuing anyway');
+        console.warn('useWebRTC: No video track found in screen share');
+        throw new Error('No video track available in screen share');
       }
       
-      // Log video track information for debugging
-      console.log('Screen share video tracks:', videoTracks.map(track => ({
-        label: track.label,
-        enabled: track.enabled,
-        readyState: track.readyState
-      })));
-      
-      // Log audio track information for debugging
-      console.log('Screen share audio tracks:', screenStream.getAudioTracks().map(track => ({
-        label: track.label,
-        enabled: track.enabled,
-        readyState: track.readyState
-      })));
+      // Verify the video track is actually working
+      const videoTrack = videoTracks[0];
+      if (videoTrack.readyState !== 'live') {
+        console.warn('useWebRTC: Video track is not live:', videoTrack.readyState);
+      }
       
       screenStreamRef.current = screenStream;
       
-      // Save the original stream in case we need it for error recovery
-      const stream = screenStream;
-      
-      // Set state with this stream immediately to avoid delay
+      // Set state with this stream immediately
       setState({
         isScreenSharing: true,
-        isAudioEnabled: screenStream.getAudioTracks().length > 0,
-        stream: stream,
+        isAudioEnabled: audioTracks.length > 0,
+        stream: screenStream,
         error: null,
       });
 
-      // Add event listener for when screen sharing ends
-      if (videoTracks.length > 0) {
-        videoTracks[0].onended = () => {
-          console.log("Screen share ended by user");
+      // Add event listeners for track ended events
+      videoTracks.forEach((track, index) => {
+        track.onended = () => {
+          console.log(`useWebRTC: Video track ${index} ended by user`);
           stopScreenShareRef.current();
         };
-      }
+      });
 
-      return stream;
+      audioTracks.forEach((track, index) => {
+        track.onended = () => {
+          console.log(`useWebRTC: Audio track ${index} ended`);
+          // Don't stop everything just because audio ended
+        };
+      });
+
+      console.log('useWebRTC: Screen share started successfully');
+      return screenStream;
     } catch (error) {
-      console.error("Screen share error:", error);
+      console.error("useWebRTC: Screen share error:", error);
       setState(prev => ({
         ...prev,
+        isScreenSharing: false,
+        stream: null,
         error: error instanceof Error ? error.message : 'Failed to start screen sharing',
       }));
       throw error;
     }
   }, []);
 
+  console.log('useWebRTC: Current state:', {
+    isScreenSharing: state.isScreenSharing,
+    hasStream: !!state.stream,
+    streamId: state.stream?.id,
+    error: state.error,
+    streamActive: state.stream?.active
+  });
+
   return {
     ...state,
     startScreenShare,
     stopScreenShare,
   };
-}; 
+};
