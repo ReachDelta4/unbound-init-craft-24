@@ -44,14 +44,6 @@ const MeetingControls = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleStartScreenShare = async () => {
-    try {
-      await startScreenShare();
-    } catch (error) {
-      console.error('Failed to start screen share:', error);
-    }
-  };
-
   const handleChangeScreen = async () => {
     // Stop current sharing and start new one
     stopScreenShare();
@@ -128,7 +120,7 @@ const MeetingControls = ({
             {/* Screen sharing control */}
             <ScreenShareControl
               isSharing={isScreenSharing}
-              onStartSharing={handleStartScreenShare}
+              onStartSharing={startScreenShare}
               onStopSharing={stopScreenShare}
               onChangeScreen={handleChangeScreen}
             />
