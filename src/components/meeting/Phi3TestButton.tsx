@@ -4,10 +4,19 @@ import { Button } from '@/components/ui/button';
 import { usePhi3Context } from '@/contexts/Phi3Context';
 
 const Phi3TestButton: React.FC = () => {
-  const { isLoaded, processTranscript } = usePhi3Context();
+  const { isLoaded, isLoading, loadError, processTranscript, initialize } = usePhi3Context();
 
   const handleTest = async () => {
-    const sampleTranscript = "Client: I'm really interested in this solution, but I'm concerned about the price. It seems expensive compared to our current setup. This implementation looks challenging. Agent: I understand your concern about pricing. Let me show you the ROI calculations. Client: That would be helpful. I'm also worried about implementation time and whether my team can adopt this quickly.";
+    if (!isLoaded) {
+      console.log('Model not loaded, attempting to initialize...');
+      const result = await initialize();
+      if (!result.success) {
+        console.error('Failed to initialize model:', result.error);
+        return;
+      }
+    }
+
+    const sampleTranscript = "Client: I'm really interested in this solution, but I'm concerned about the price. It seems expensive compared to our current setup.";
     
     console.log('Testing Phi-3 with sample transcript...');
     try {
@@ -18,7 +27,20 @@ const Phi3TestButton: React.FC = () => {
     }
   };
 
-  if (!isLoaded) {
+  if (loadError) {
+    return (
+      <Button 
+        onClick={() => window.location.reload()}
+        variant="destructive"
+        size="sm"
+        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border shadow-sm"
+      >
+        Error - Reload
+      </Button>
+    );
+  }
+
+  if (isLoading) {
     return (
       <Button 
         variant="outline"
@@ -26,7 +48,7 @@ const Phi3TestButton: React.FC = () => {
         className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border shadow-sm"
         disabled
       >
-        Model Loading...
+        Loading Model...
       </Button>
     );
   }
@@ -38,7 +60,7 @@ const Phi3TestButton: React.FC = () => {
       size="sm"
       className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border shadow-sm"
     >
-      Test AI
+      {isLoaded ? 'Test AI' : 'Load & Test AI'}
     </Button>
   );
 };

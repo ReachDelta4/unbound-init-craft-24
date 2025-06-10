@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { usePhi3 } from '@/hooks/usePhi3';
 import { Phi3Insights, defaultPhi3Insights } from '@/integrations/phi3/phi3Config';
@@ -24,10 +25,22 @@ export function Phi3Provider({ children, autoInitialize = false }: {
   // Auto-initialize if requested
   useEffect(() => {
     if (autoInitialize && !initAttempted && !phi3.isLoaded && !phi3.isLoading) {
-      phi3.initialize();
+      console.log('Phi3Provider: Auto-initializing model...');
+      phi3.initialize().then(result => {
+        console.log('Phi3Provider: Auto-initialization result:', result);
+      });
       setInitAttempted(true);
     }
   }, [autoInitialize, initAttempted, phi3.isLoaded, phi3.isLoading, phi3.initialize]);
+
+  // Log status changes
+  useEffect(() => {
+    console.log('Phi3Provider: Status update:', {
+      isLoaded: phi3.isLoaded,
+      isLoading: phi3.isLoading,
+      loadError: phi3.loadError
+    });
+  }, [phi3.isLoaded, phi3.isLoading, phi3.loadError]);
 
   return (
     <Phi3Context.Provider value={phi3}>
@@ -44,4 +57,4 @@ export function usePhi3Context(): Phi3ContextType {
   }
   
   return context;
-} 
+}
