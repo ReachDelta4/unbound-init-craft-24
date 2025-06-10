@@ -91,3 +91,6 @@ export const convertMarkdownToDocx = async (markdownContent: string, title: stri
 
   return await Packer.toBlob(doc);
 };
+
+// Export alias for backward compatibility
+export const markdownToDocxBlob = convertMarkdownToDocx;
