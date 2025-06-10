@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback } from "react";
 import { X, StickyNote } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +22,9 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!widgetRef.current) return;
     
+    // Prevent text selection during drag
+    e.preventDefault();
+    
     const rect = widgetRef.current.getBoundingClientRect();
     setDragOffset({
       x: e.clientX - rect.left,
@@ -31,6 +35,9 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
+    
+    // Prevent text selection during drag
+    e.preventDefault();
     
     let newX = e.clientX - dragOffset.x;
     let newY = e.clientY - dragOffset.y;
@@ -54,13 +61,24 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
 
   React.useEffect(() => {
     if (isDragging) {
+      // Disable text selection on the entire document during drag
+      document.body.style.userSelect = 'none';
+      document.body.style.webkitUserSelect = 'none';
+      
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+    } else {
+      // Re-enable text selection when not dragging
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
     }
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      // Ensure text selection is re-enabled on cleanup
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
@@ -93,13 +111,14 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
       <div
         ref={widgetRef}
         className={`fixed z-50 transition-all duration-300 ease-out ${
-          isDragging ? 'cursor-grabbing' : 'cursor-grab'
+          isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
         } ${isExpanded ? 'cursor-default' : ''}`}
         style={{
           left: position.x,
           top: position.y,
           width: isExpanded ? '300px' : '120px',
-          height: isExpanded ? '400px' : '40px'
+          height: isExpanded ? '400px' : '40px',
+          userSelect: isDragging ? 'none' : 'auto'
         }}
         onMouseDown={!isExpanded ? handleMouseDown : undefined}
       >
@@ -117,8 +136,11 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
           <div className="bg-card/95 backdrop-blur-sm border-2 border-border rounded-xl shadow-2xl h-full flex flex-col overflow-hidden">
             {/* Header */}
             <div 
-              className="flex items-center justify-between p-3 border-b-2 border-border cursor-grab"
+              className={`flex items-center justify-between p-3 border-b-2 border-border ${
+                isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
+              }`}
               onMouseDown={handleMouseDown}
+              style={{ userSelect: 'none' }}
             >
               <h3 className="text-sm font-medium">Notes & Agenda</h3>
               <Button
