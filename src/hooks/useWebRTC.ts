@@ -66,8 +66,12 @@ export const useWebRTC = () => {
     console.log("useWebRTC: Starting screen capture process...");
     
     try {
-      // Clear any previous error
-      setState(prev => ({ ...prev, error: null }));
+      // Clear any previous error and set loading state
+      setState(prev => ({ 
+        ...prev, 
+        error: null,
+        isScreenSharing: true // Set this immediately to show loading state
+      }));
       
       console.log("useWebRTC: Requesting display media...");
       
@@ -127,7 +131,7 @@ export const useWebRTC = () => {
       // Store references
       screenStreamRef.current = screenStream;
       
-      // Update state with the new stream
+      // Update state with the new stream - this should trigger re-renders
       setState({
         isScreenSharing: true,
         isAudioEnabled: audioTracks.length > 0,
@@ -150,7 +154,7 @@ export const useWebRTC = () => {
         };
       });
 
-      console.log('useWebRTC: Screen share started successfully');
+      console.log('useWebRTC: Screen share started successfully, returning stream');
       return screenStream;
       
     } catch (error) {

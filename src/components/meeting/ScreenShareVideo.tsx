@@ -25,14 +25,23 @@ const ScreenShareVideo = ({ stream, isActive }: ScreenShareVideoProps) => {
     });
 
     // Reset states when props change
-    if (!stream || !isActive) {
-      console.log('ScreenShareVideo: No stream or not active, clearing video');
+    if (!isActive) {
+      console.log('ScreenShareVideo: Not active, clearing video');
       setIsLoaded(false);
       setError(null);
       setIsLoading(false);
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
+      return;
+    }
+
+    // If active but no stream, show loading state (stream might be coming)
+    if (!stream) {
+      console.log('ScreenShareVideo: Active but no stream, showing loading state');
+      setIsLoading(true);
+      setError(null);
+      setIsLoaded(false);
       return;
     }
 
@@ -122,13 +131,26 @@ const ScreenShareVideo = ({ stream, isActive }: ScreenShareVideoProps) => {
     };
   }, [stream, isActive]);
 
-  // Show placeholder when not active or no stream
-  if (!isActive || !stream) {
+  // Show placeholder when not active
+  if (!isActive) {
     return (
       <div className="w-full h-[400px] bg-muted/20 border-2 border-dashed border-muted-foreground/20 rounded-lg flex flex-col items-center justify-center">
         <Monitor className="w-16 h-16 text-muted-foreground/50 mb-4" />
         <h3 className="text-lg font-medium text-muted-foreground/70 mb-2">Screen Share Preview</h3>
         <p className="text-sm text-muted-foreground/50">Start a call to see screen share content</p>
+      </div>
+    );
+  }
+
+  // Show loading state when active but no stream yet
+  if (!stream) {
+    return (
+      <div className="w-full h-[400px] bg-black border border-border rounded-lg flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-2" />
+          <p className="text-sm text-blue-400">Starting screen share...</p>
+          <p className="text-xs text-blue-300 mt-1">Please select a screen to share</p>
+        </div>
       </div>
     );
   }
@@ -179,7 +201,7 @@ const ScreenShareVideo = ({ stream, isActive }: ScreenShareVideoProps) => {
 
         {/* Loading State */}
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 min-h-[300px]">
             <div className="text-center">
               <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-2" />
               <p className="text-sm text-white/70">Loading screen share...</p>
@@ -190,7 +212,7 @@ const ScreenShareVideo = ({ stream, isActive }: ScreenShareVideoProps) => {
 
         {/* Error State */}
         {error && !isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 min-h-[300px]">
             <div className="text-center">
               <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-2" />
               <p className="text-sm text-red-400 mb-2">{error}</p>
@@ -201,7 +223,7 @@ const ScreenShareVideo = ({ stream, isActive }: ScreenShareVideoProps) => {
 
         {/* Initial State (has stream but not loaded yet) */}
         {!isLoaded && !isLoading && !error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 min-h-[300px]">
             <div className="text-center">
               <Monitor className="w-12 h-12 text-blue-400 mx-auto mb-2" />
               <p className="text-sm text-blue-400">Preparing screen share...</p>
