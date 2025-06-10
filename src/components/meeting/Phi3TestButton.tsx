@@ -7,7 +7,7 @@ const Phi3TestButton: React.FC = () => {
   const { isLoaded, processTranscript } = usePhi3Context();
 
   const handleTest = async () => {
-    const sampleTranscript = "Client: I'm really interested in this solution, but I'm concerned about the price. It seems expensive compared to our current setup. Agent: I understand your concern about pricing. Let me show you the ROI calculations. Client: That would be helpful. I'm also worried about implementation time.";
+    const sampleTranscript = "Client: I'm really interested in this solution, but I'm concerned about the price. It seems expensive compared to our current setup. This implementation looks challenging. Agent: I understand your concern about pricing. Let me show you the ROI calculations. Client: That would be helpful. I'm also worried about implementation time and whether my team can adopt this quickly.";
     
     console.log('Testing Phi-3 with sample transcript...');
     try {
@@ -19,7 +19,16 @@ const Phi3TestButton: React.FC = () => {
   };
 
   if (!isLoaded) {
-    return null;
+    return (
+      <Button 
+        variant="outline"
+        size="sm"
+        className="absolute top-4 right-4 z-20"
+        disabled
+      >
+        Model Loading...
+      </Button>
+    );
   }
 
   return (

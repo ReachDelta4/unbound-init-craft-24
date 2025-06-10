@@ -25,9 +25,8 @@ class Phi3Client {
       this.loadError = null;
 
       console.log('Starting Phi-3 model initialization...');
-      // Load the model using pipeline
+      // Load the model using pipeline with updated options
       this.model = await pipeline('text-generation', PHI3_CONFIG.modelId, {
-        quantized: true, // Use quantized model for better performance
         device: 'cpu', // Start with CPU, can be upgraded to webgpu later
       });
 
@@ -110,7 +109,7 @@ class Phi3Client {
         console.log('Parsed emotions:', emotions);
       } catch (e) {
         console.error('Failed to parse emotions response:', emotionsResponse);
-        emotions = defaultPhi3Insights.emotions;
+        emotions = [];
       }
 
       // Process pain points
@@ -122,7 +121,7 @@ class Phi3Client {
         console.log('Parsed pain points:', painPoints);
       } catch (e) {
         console.error('Failed to parse pain points response:', painPointsResponse);
-        painPoints = defaultPhi3Insights.painPoints;
+        painPoints = [];
       }
 
       // Process objections
@@ -134,7 +133,7 @@ class Phi3Client {
         console.log('Parsed objections:', objections);
       } catch (e) {
         console.error('Failed to parse objections response:', objectionsResponse);
-        objections = defaultPhi3Insights.objections;
+        objections = [];
       }
 
       // Process recommendations
@@ -146,7 +145,7 @@ class Phi3Client {
         console.log('Parsed recommendations:', recommendations);
       } catch (e) {
         console.error('Failed to parse recommendations response:', recommendationsResponse);
-        recommendations = defaultPhi3Insights.recommendations;
+        recommendations = [];
       }
 
       // Process next actions
@@ -158,7 +157,7 @@ class Phi3Client {
         console.log('Parsed next actions:', nextActions);
       } catch (e) {
         console.error('Failed to parse next actions response:', nextActionsResponse);
-        nextActions = defaultPhi3Insights.nextActions;
+        nextActions = [];
       }
 
       // Process AI coaching
