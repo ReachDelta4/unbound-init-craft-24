@@ -32,17 +32,20 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     
-    const newX = e.clientX - dragOffset.x;
-    const newY = e.clientY - dragOffset.y;
+    let newX = e.clientX - dragOffset.x;
+    let newY = e.clientY - dragOffset.y;
     
-    // Constraint to viewport
-    const maxX = window.innerWidth - (isExpanded ? 300 : 120);
-    const maxY = window.innerHeight - (isExpanded ? 400 : 40);
+    // Constraint to viewport - ensure the widget stays within screen bounds
+    const widgetWidth = isExpanded ? 300 : 120;
+    const widgetHeight = isExpanded ? 400 : 40;
+    const maxX = window.innerWidth - widgetWidth;
+    const maxY = window.innerHeight - widgetHeight;
     
-    setPosition({
-      x: Math.max(0, Math.min(newX, maxX)),
-      y: Math.max(0, Math.min(newY, maxY))
-    });
+    // Keep widget within bounds
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+    
+    setPosition({ x: newX, y: newY });
   }, [isDragging, dragOffset, isExpanded]);
 
   const handleMouseUp = useCallback(() => {
@@ -63,6 +66,18 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
 
   const handleToggleExpanded = () => {
     if (!isDragging) {
+      // Adjust position when expanding to ensure it stays in bounds
+      if (!isExpanded) {
+        const widgetWidth = 300;
+        const widgetHeight = 400;
+        const maxX = window.innerWidth - widgetWidth;
+        const maxY = window.innerHeight - widgetHeight;
+        
+        setPosition(prev => ({
+          x: Math.min(prev.x, maxX),
+          y: Math.min(prev.y, maxY)
+        }));
+      }
       setIsExpanded(!isExpanded);
     }
   };
@@ -74,15 +89,7 @@ const FloatingNotesWidget = ({ isCallActive }: FloatingNotesWidgetProps) => {
 
   return (
     <>
-      {/* Backdrop when expanded */}
-      {isExpanded && (
-        <div 
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
-          onClick={() => setIsExpanded(false)}
-        />
-      )}
-      
-      {/* Floating Widget */}
+      {/* Floating Widget - removed backdrop */}
       <div
         ref={widgetRef}
         className={`fixed z-50 transition-all duration-300 ease-out ${
