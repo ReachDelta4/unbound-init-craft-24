@@ -80,7 +80,8 @@ const ResizableScreenShare = ({ stream, isActive }: ResizableScreenShareProps) =
       streamId: stream?.id
     });
 
-    if (!isActive || !stream) {
+    // Show the stream if we have one, regardless of call state
+    if (!stream) {
       setIsVideoLoaded(false);
       setError(null);
       setStreamDetails(null);
@@ -159,17 +160,16 @@ const ResizableScreenShare = ({ stream, isActive }: ResizableScreenShareProps) =
       setError('Failed to set up video element');
       setIsVideoLoaded(false);
     }
-  }, [stream, isActive, validateStream]);
+  }, [stream, validateStream]);
 
-  // Show placeholder when not active or no stream
-  if (!isActive || !stream) {
+  // Show placeholder when no stream available
+  if (!stream) {
     return (
       <Card className="w-full h-64 flex items-center justify-center bg-muted/30 border border-border">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Monitor className="h-12 w-12" />
           <p className="text-sm">Screen share preview will appear here</p>
-          {!isActive && <p className="text-xs">Call not active</p>}
-          {isActive && !stream && <p className="text-xs">No stream available</p>}
+          <p className="text-xs">Start screen sharing to see content</p>
         </div>
       </Card>
     );
