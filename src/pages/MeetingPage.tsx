@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import MeetingControls from "@/components/MeetingControls";
 import MeetingDialogsManager from "@/components/meeting/MeetingDialogsManager";
 import { MeetingProvider, useMeetingContext } from "@/components/meeting/MeetingProvider";
 import { useMeetingPageLogic } from "@/hooks/useMeetingPageLogic";
+import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
 
 const MeetingPageContent = () => {
   const {
@@ -75,7 +75,7 @@ const MeetingPageContent = () => {
           insights={insights}
           realtimeText={liveTranscript}
           fullSentences={fullTranscript ? fullTranscript.split('\n').filter(Boolean) : []}
-          transcriptionStatus={wsStatus}
+          transcriptionStatus={wsStatus as TranscriptionWSStatus}
           transcriptionError={wsError}
           onReconnectTranscription={reconnectTranscription}
           stream={webRTCStream}
@@ -85,6 +85,7 @@ const MeetingPageContent = () => {
               : "h-[calc(100vh-56px)]"
           }`}
         />
+        
         
         <CallTimer
           isActive={isCallActive}
