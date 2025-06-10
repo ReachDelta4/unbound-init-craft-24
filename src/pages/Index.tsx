@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MeetingControls from "@/components/MeetingControls";
@@ -302,21 +301,42 @@ const Index = () => {
 
   const handleStartCall = useCallback(async (callType: string) => {
     if (!callType || !user) return;
+    
+    console.log('Index: Starting call process...');
+    
     try {
       setConnectionTimedOut(false);
       setAutoReconnect(true);
       
-      console.log('Index: Starting call with screen share');
+      // First start the meeting in the database
+      console.log('Index: Starting meeting in database...');
+      await startMeeting(callType);
+      console.log('Index: Meeting started in database');
+      
+      // Then start screen sharing
+      console.log('Index: Requesting screen share...');
       const combinedStream = await startScreenShare();
-      console.log('Index: Screen share started, stream:', {
-        id: combinedStream?.id,
-        videoTracks: combinedStream?.getVideoTracks().length || 0,
-        audioTracks: combinedStream?.getAudioTracks().length || 0,
-        active: combinedStream?.active
+      
+      if (!combinedStream) {
+        throw new Error('Failed to get screen share stream');
+      }
+      
+      console.log('Index: Screen share started successfully, stream:', {
+        id: combinedStream.id,
+        videoTracks: combinedStream.getVideoTracks().length,
+        audioTracks: combinedStream.getAudioTracks().length,
+        active: combinedStream.active,
+        videoTrackStates: combinedStream.getVideoTracks().map(t => ({
+          label: t.label,
+          enabled: t.enabled,
+          readyState: t.readyState
+        }))
       });
       
+      // Extract audio streams for transcription
       extractAudioStreams(combinedStream);
       
+      // Setup microphone fallback if needed
       if (!micStreamRef.current?.getAudioTracks().length) {
         console.warn('No microphone audio track found, attempting to get mic access separately');
         try {
@@ -328,6 +348,7 @@ const Index = () => {
             }
           });
           micStreamRef.current = micOnlyStream;
+          console.log('Index: Separate microphone stream acquired');
         } catch (micError) {
           console.error('Failed to get microphone access:', micError);
           toast({
@@ -338,45 +359,70 @@ const Index = () => {
         }
       }
       
+      // Create silent system audio fallback if needed
       if (!systemStreamRef.current?.getAudioTracks().length) {
         console.warn('No system audio track found, creating silent fallback');
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const silentOsc = audioContext.createOscillator();
-        const silentGain = audioContext.createGain();
-        silentGain.gain.value = 0;
-        silentOsc.connect(silentGain);
-        silentGain.connect(audioContext.destination);
-        silentOsc.start();
-        
-        const silentDest = audioContext.createMediaStreamDestination();
-        silentGain.connect(silentDest);
-        systemStreamRef.current = silentDest.stream;
+        try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const silentOsc = audioContext.createOscillator();
+          const silentGain = audioContext.createGain();
+          silentGain.gain.value = 0;
+          silentOsc.connect(silentGain);
+          
+          const silentDest = audioContext.createMediaStreamDestination();
+          silentGain.connect(silentDest);
+          silentOsc.start();
+          
+          systemStreamRef.current = silentDest.stream;
+          console.log('Index: Silent system audio stream created');
+        } catch (audioError) {
+          console.error('Failed to create silent audio stream:', audioError);
+          // Create empty stream as absolute fallback
+          systemStreamRef.current = new MediaStream();
+        }
       }
       
-      console.log('Audio Tracks for WebSocket:', {
+      console.log('Audio Tracks prepared for WebSocket:', {
         mic: micStreamRef.current?.getAudioTracks().map(t => t.label) || [],
         system: systemStreamRef.current?.getAudioTracks().map(t => t.label) || []
       });
       
+      // Start transcription with a slight delay to ensure everything is ready
       setTimeout(() => {
         if (micStreamRef.current && systemStreamRef.current) {
+          console.log('Index: Starting transcription websocket...');
           connectMixedAudio(micStreamRef.current, systemStreamRef.current, 16000);
         } else {
           console.error('Failed to prepare audio streams for websocket');
         }
-      }, 500);
+      }, 1000);
       
-      await startMeeting(callType);
-      console.log('Index: Meeting started successfully');
-    } catch (error) {
-      console.error('Error starting screen share:', error);
       toast({
-        title: "Failed to start screen sharing",
-        description: webRTCError || "Please make sure you have granted the necessary permissions.",
+        title: "Call started",
+        description: "Screen sharing and transcription are now active.",
+      });
+      
+    } catch (error) {
+      console.error('Error starting call:', error);
+      
+      // Clean up on error
+      stopScreenShare();
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach(track => track.stop());
+        micStreamRef.current = null;
+      }
+      if (systemStreamRef.current) {
+        systemStreamRef.current.getTracks().forEach(track => track.stop());
+        systemStreamRef.current = null;
+      }
+      
+      toast({
+        title: "Failed to start call",
+        description: webRTCError || (error instanceof Error ? error.message : "Please make sure you have granted screen sharing permissions."),
         variant: "destructive",
       });
     }
-  }, [user, startMeeting, toast, startScreenShare, webRTCError, connectMixedAudio, extractAudioStreams, setAutoReconnect]);
+  }, [user, startMeeting, toast, startScreenShare, webRTCError, connectMixedAudio, extractAudioStreams, setAutoReconnect, stopScreenShare]);
 
   const handleEndCall = useCallback(() => {
     setShowEndCallConfirmation(true);

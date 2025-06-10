@@ -59,13 +59,19 @@ export const useWebRTC = () => {
     };
   }, []);
 
-  const startScreenShare = useCallback(async () => {
+  const startScreenShare = useCallback(async (): Promise<MediaStream> => {
     // Always stop any existing screen share before starting a new one
     stopScreenShareRef.current();
+    
+    console.log("useWebRTC: Starting screen capture process...");
+    
     try {
-      console.log("useWebRTC: Requesting screen capture...");
+      // Clear any previous error
+      setState(prev => ({ ...prev, error: null }));
       
-      // Use enhanced getDisplayMedia call for better stream quality
+      console.log("useWebRTC: Requesting display media...");
+      
+      // Request screen sharing with enhanced options
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           width: { ideal: 1920, max: 1920 },
@@ -78,6 +84,11 @@ export const useWebRTC = () => {
           autoGainControl: true
         }
       });
+      
+      // Validate the stream
+      if (!screenStream) {
+        throw new Error('No screen stream received from getDisplayMedia');
+      }
       
       // Check if video track exists and is active
       const videoTracks = screenStream.getVideoTracks();
@@ -103,8 +114,8 @@ export const useWebRTC = () => {
       });
       
       if (videoTracks.length === 0) {
-        console.warn('useWebRTC: No video track found in screen share');
-        throw new Error('No video track available in screen share');
+        screenStream.getTracks().forEach(track => track.stop());
+        throw new Error('No video track found in screen share stream');
       }
       
       // Verify the video track is actually working
@@ -113,9 +124,10 @@ export const useWebRTC = () => {
         console.warn('useWebRTC: Video track is not live:', videoTrack.readyState);
       }
       
+      // Store references
       screenStreamRef.current = screenStream;
       
-      // Set state with this stream immediately
+      // Update state with the new stream
       setState({
         isScreenSharing: true,
         isAudioEnabled: audioTracks.length > 0,
@@ -140,15 +152,32 @@ export const useWebRTC = () => {
 
       console.log('useWebRTC: Screen share started successfully');
       return screenStream;
+      
     } catch (error) {
       console.error("useWebRTC: Screen share error:", error);
+      
+      let errorMessage = 'Failed to start screen sharing';
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage = 'Screen sharing permission denied. Please allow screen sharing and try again.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = 'No screen sharing source available.';
+        } else if (error.name === 'NotSupportedError') {
+          errorMessage = 'Screen sharing is not supported in this browser.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       setState(prev => ({
         ...prev,
         isScreenSharing: false,
         stream: null,
-        error: error instanceof Error ? error.message : 'Failed to start screen sharing',
+        error: errorMessage,
       }));
-      throw error;
+      
+      throw new Error(errorMessage);
     }
   }, []);
 
