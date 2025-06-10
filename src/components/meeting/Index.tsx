@@ -5,7 +5,6 @@ import { Mic, MicOff, Video, VideoOff, Phone, Share, Share2, Monitor } from "luc
 import MeetingWorkspace from "./MeetingWorkspace";
 import { useTranscriptionWebSocket } from "@/hooks/useTranscriptionWebSocket";
 import useScreenCapture from "@/hooks/useScreenCapture";
-import ScreenShareControl from "./ScreenShareControl";
 
 const MeetingPage = () => {
   const navigate = useNavigate();
@@ -20,7 +19,7 @@ const MeetingPage = () => {
 
   // Transcription hook
   const {
-    liveTranscript: transcript,
+    transcript,
     realtimeText,
     fullSentences,
     status: transcriptionStatus,
@@ -30,7 +29,7 @@ const MeetingPage = () => {
   } = useTranscriptionWebSocket();
 
   // Screen capture hook
-  const { stream, isActive: isScreenSharing, startCapture, stopCapture } = useScreenCapture();
+  const { stream, startCapture, stopCapture } = useScreenCapture();
 
   // Sample insights data
   const insights = {
@@ -103,29 +102,6 @@ const MeetingPage = () => {
       } catch (error) {
         console.error("Error starting screen share:", error);
       }
-    }
-  };
-
-  // Handle screen sharing functions for the control
-  const handleStartScreenShare = async () => {
-    try {
-      await startCapture();
-    } catch (error) {
-      console.error("Error starting screen share:", error);
-    }
-  };
-
-  const handleStopScreenShare = () => {
-    stopCapture();
-  };
-
-  const handleChangeScreenShare = async () => {
-    // Stop current share and start new one
-    stopCapture();
-    try {
-      await startCapture();
-    } catch (error) {
-      console.error("Error changing screen share:", error);
     }
   };
 
@@ -224,12 +200,14 @@ const MeetingPage = () => {
         
         {/* Center Controls */}
         <div className="flex items-center gap-2">
-          <ScreenShareControl
-            isScreenSharing={isScreenSharing}
-            onStartScreenShare={handleStartScreenShare}
-            onStopScreenShare={handleStopScreenShare}
-            onChangeScreenShare={handleChangeScreenShare}
-          />
+          <Button
+            variant={isScreenSharing ? "default" : "outline"}
+            size="icon"
+            className="h-12 w-12 rounded-full border-2 border-border"
+            onClick={toggleScreenShare}
+          >
+            {isScreenSharing ? <Monitor className="h-5 w-5" /> : <Share2 className="h-5 w-5" />}
+          </Button>
         </div>
         
         {/* Right Controls */}
@@ -249,4 +227,4 @@ const MeetingPage = () => {
   );
 };
 
-export default MeetingPage;
+export default MeetingPage; 

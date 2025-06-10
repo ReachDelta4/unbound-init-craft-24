@@ -8,7 +8,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Play, StopCircle, Mic, Video, Loader2 } from "lucide-react";
-import ScreenShareControl from "@/components/meeting/ScreenShareControl";
 
 interface MeetingControlsProps {
   isCallActive: boolean;
@@ -19,11 +18,6 @@ interface MeetingControlsProps {
   onEndCall: () => void;
   isLoading?: boolean;
   isSaving?: boolean;
-  // Screen sharing props
-  isScreenSharing?: boolean;
-  onStartScreenShare?: () => Promise<void>;
-  onStopScreenShare?: () => void;
-  onChangeScreenShare?: () => Promise<void>;
 }
 
 const MeetingControls = ({
@@ -35,10 +29,6 @@ const MeetingControls = ({
   onEndCall,
   isLoading = false,
   isSaving = false,
-  isScreenSharing = false,
-  onStartScreenShare = async () => {},
-  onStopScreenShare = () => {},
-  onChangeScreenShare = async () => {},
 }: MeetingControlsProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -119,17 +109,6 @@ const MeetingControls = ({
             </>
           )}
         </Button>
-      )}
-
-      {/* Screen Share Control - only show when call is active */}
-      {isCallActive && (
-        <ScreenShareControl
-          isScreenSharing={isScreenSharing}
-          onStartScreenShare={onStartScreenShare}
-          onStopScreenShare={onStopScreenShare}
-          onChangeScreenShare={onChangeScreenShare}
-          disabled={isLoading || isSaving}
-        />
       )}
     </div>
   );
