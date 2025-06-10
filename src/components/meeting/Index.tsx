@@ -19,7 +19,6 @@ const MeetingPage = () => {
 
   // Transcription hook
   const {
-    transcript,
     realtimeText,
     fullSentences,
     status: transcriptionStatus,
@@ -59,6 +58,9 @@ const MeetingPage = () => {
       "Share implementation timeline"
     ]
   };
+
+  // Create transcript from full sentences
+  const transcript = fullSentences.join('\n\n');
 
   // Start/stop call
   const toggleCall = () => {
@@ -227,4 +229,4 @@ const MeetingPage = () => {
   );
 };
 
-export default MeetingPage; 
+export default MeetingPage;
