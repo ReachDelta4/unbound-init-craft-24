@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,16 +16,15 @@ const LiveTranscriptDisplay = ({ liveText, transcriptHistory }: LiveTranscriptDi
     <div className="bg-card border-2 border-border rounded-lg p-4 shadow-sm">
       {/* Live Transcript */}
       <div className="mb-4">
-        <div className="bg-primary/10 border-2 border-primary/30 rounded-lg p-4">
-          <div className="flex items-center mb-2">
-            <span className="text-xs font-semibold bg-primary/20 text-primary px-2 py-0.5 rounded mr-2 border border-primary/40">
+        <div className="bg-green-50 dark:bg-green-950/20 border-2 border-green-200 dark:border-green-800 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xs font-semibold bg-green-500 text-white px-2 py-1 rounded-md shadow-sm">
               LIVE
             </span>
-            <span className="text-xs text-muted-foreground">Current transcription</span>
+            <p className="text-foreground font-medium flex-1 min-h-[1.5rem]">
+              {liveText || "Waiting for speech..."}
+            </p>
           </div>
-          <p className="text-primary font-medium">
-            {liveText || "Waiting for speech..."}
-          </p>
         </div>
       </div>
 
