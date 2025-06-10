@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,8 @@ import MeetingWorkspace from "@/components/meeting/MeetingWorkspace";
 import CallTimer from "@/components/meeting/CallTimer";
 import MeetingControls from "@/components/MeetingControls";
 import MeetingDialogsManager from "@/components/meeting/MeetingDialogsManager";
+import Phi3Insights from "@/components/meeting/Phi3Insights";
+import Phi3TestButton from "@/components/meeting/Phi3TestButton";
 import { MeetingProvider, useMeetingContext } from "@/components/meeting/MeetingProvider";
 import { useMeetingPageLogic } from "@/hooks/useMeetingPageLogic";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
@@ -63,18 +66,33 @@ const MeetingPageContent = () => {
     hasWebRTCStream: !!webRTCStream,
     webRTCStreamActive: webRTCStream?.active,
     isScreenSharing: !!webRTCStream,
-    fullSentences: fullTranscript ? fullTranscript.split('\n').filter(Boolean) : []
+    fullSentences: fullTranscript ? fullTranscript.split('\n').filter(Boolean) : [],
+    liveTranscript,
+    insights
   });
+
+  // Parse full sentences from the transcript
+  const fullSentences = fullTranscript ? fullTranscript.split('\n').filter(Boolean) : [];
 
   return (
     <MainLayout>
-      <div>
+      <div className="relative">
+        {/* Test button for debugging AI */}
+        <Phi3TestButton />
+        
+        {/* Hidden Phi3Insights component to process transcript */}
+        <Phi3Insights
+          liveText={liveTranscript}
+          transcriptHistory={fullSentences}
+          className="hidden"
+        />
+        
         <MeetingWorkspace
           isCallActive={isCallActive}
           transcript={fullTranscript || ""}
           insights={insights}
           realtimeText={liveTranscript}
-          fullSentences={fullTranscript ? fullTranscript.split('\n').filter(Boolean) : []}
+          fullSentences={fullSentences}
           transcriptionStatus={wsStatus as TranscriptionWSStatus}
           transcriptionError={wsError}
           onReconnectTranscription={reconnectTranscription}

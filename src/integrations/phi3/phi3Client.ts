@@ -1,4 +1,5 @@
-import { pipeline } from '@xenova/transformers';
+
+import { pipeline } from '@huggingface/transformers';
 import { PHI3_CONFIG, Phi3Insights, defaultPhi3Insights } from './phi3Config';
 
 class Phi3Client {
@@ -10,10 +11,12 @@ class Phi3Client {
   // Initialize the model
   async initialize(): Promise<{ success: boolean; error?: string }> {
     if (this.isLoaded) {
+      console.log('Phi-3 model already loaded');
       return { success: true };
     }
 
     if (this.isLoading) {
+      console.log('Phi-3 model loading already in progress');
       return { success: false, error: "Model loading is already in progress" };
     }
 
@@ -21,14 +24,16 @@ class Phi3Client {
       this.isLoading = true;
       this.loadError = null;
 
+      console.log('Starting Phi-3 model initialization...');
       // Load the model using pipeline
-      console.log('Loading Phi-3 model...');
       this.model = await pipeline('text-generation', PHI3_CONFIG.modelId, {
         quantized: true, // Use quantized model for better performance
+        device: 'cpu', // Start with CPU, can be upgraded to webgpu later
       });
 
       this.isLoaded = true;
       this.isLoading = false;
+      console.log('Phi-3 model loaded successfully!');
       return { success: true };
     } catch (error) {
       this.isLoading = false;
@@ -60,6 +65,8 @@ class Phi3Client {
     }
 
     try {
+      console.log('Generating response for prompt:', prompt.substring(0, 100) + '...');
+      
       // Format the message as a chat
       const formattedPrompt = `<|user|>${prompt}<|end|><|assistant|>`;
 
@@ -74,7 +81,10 @@ class Phi3Client {
       // Extract the assistant's response part
       const generatedText = result[0].generated_text;
       const assistantPart = generatedText.split('<|assistant|>')[1];
-      return assistantPart ? assistantPart.trim().replace('<|end|>', '') : '';
+      const response = assistantPart ? assistantPart.trim().replace('<|end|>', '') : '';
+      
+      console.log('Generated response:', response.substring(0, 100) + '...');
+      return response;
     } catch (error) {
       console.error('Error generating response:', error);
       throw error;
@@ -84,8 +94,11 @@ class Phi3Client {
   // Process transcript to extract insights
   async processTranscript(transcript: string): Promise<Phi3Insights> {
     if (!transcript.trim()) {
+      console.log('Empty transcript, returning default insights');
       return defaultPhi3Insights;
     }
+
+    console.log('Processing full transcript with Phi-3:', transcript.substring(0, 100) + '...');
 
     try {
       // Process emotions
@@ -94,6 +107,7 @@ class Phi3Client {
       let emotions;
       try {
         emotions = JSON.parse(emotionsResponse);
+        console.log('Parsed emotions:', emotions);
       } catch (e) {
         console.error('Failed to parse emotions response:', emotionsResponse);
         emotions = defaultPhi3Insights.emotions;
@@ -105,6 +119,7 @@ class Phi3Client {
       let painPoints;
       try {
         painPoints = JSON.parse(painPointsResponse);
+        console.log('Parsed pain points:', painPoints);
       } catch (e) {
         console.error('Failed to parse pain points response:', painPointsResponse);
         painPoints = defaultPhi3Insights.painPoints;
@@ -116,6 +131,7 @@ class Phi3Client {
       let objections;
       try {
         objections = JSON.parse(objectionsResponse);
+        console.log('Parsed objections:', objections);
       } catch (e) {
         console.error('Failed to parse objections response:', objectionsResponse);
         objections = defaultPhi3Insights.objections;
@@ -127,6 +143,7 @@ class Phi3Client {
       let recommendations;
       try {
         recommendations = JSON.parse(recommendationsResponse);
+        console.log('Parsed recommendations:', recommendations);
       } catch (e) {
         console.error('Failed to parse recommendations response:', recommendationsResponse);
         recommendations = defaultPhi3Insights.recommendations;
@@ -138,6 +155,7 @@ class Phi3Client {
       let nextActions;
       try {
         nextActions = JSON.parse(nextActionsResponse);
+        console.log('Parsed next actions:', nextActions);
       } catch (e) {
         console.error('Failed to parse next actions response:', nextActionsResponse);
         nextActions = defaultPhi3Insights.nextActions;
@@ -146,12 +164,14 @@ class Phi3Client {
       // Process AI coaching
       const aiCoachingPrompt = PHI3_CONFIG.prompts.aiCoaching + "\n\nTranscript: " + transcript;
       const aiCoaching = await this.generateResponse(aiCoachingPrompt);
+      console.log('AI coaching response:', aiCoaching);
 
       // Process call stage
       const callStagePrompt = PHI3_CONFIG.prompts.callStage + "\n\nTranscript: " + transcript;
       const callStage = await this.generateResponse(callStagePrompt);
+      console.log('Call stage response:', callStage);
 
-      return {
+      const finalInsights = {
         emotions,
         painPoints,
         objections,
@@ -160,6 +180,9 @@ class Phi3Client {
         aiCoaching,
         callStage
       };
+      
+      console.log('Final processed insights:', finalInsights);
+      return finalInsights;
     } catch (error) {
       console.error('Error processing transcript:', error);
       return defaultPhi3Insights;
@@ -178,6 +201,8 @@ class Phi3Client {
     if (!context.trim()) {
       return previousInsights;
     }
+    
+    console.log('Processing incremental update:', newSentence);
     
     try {
       // For incremental updates, we do targeted analysis to reduce processing
@@ -262,7 +287,7 @@ class Phi3Client {
         }
       }
       
-      return {
+      const updatedInsights = {
         emotions,
         painPoints,
         objections,
@@ -271,6 +296,9 @@ class Phi3Client {
         aiCoaching,
         callStage
       };
+      
+      console.log('Updated insights from incremental processing:', updatedInsights);
+      return updatedInsights;
     } catch (error) {
       console.error('Error processing incremental update:', error);
       return previousInsights;
@@ -281,4 +309,4 @@ class Phi3Client {
 // Create a singleton instance
 const phi3Client = new Phi3Client();
 
-export default phi3Client; 
+export default phi3Client;

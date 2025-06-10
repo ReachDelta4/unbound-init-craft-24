@@ -43,7 +43,6 @@
     "@radix-ui/react-tooltip": "^1.1.4",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-query": "^5.56.2",
-    "@xenova/transformers": "^2.17.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -60,6 +59,7 @@
     "next-themes": "^0.3.0",
     "onnxruntime-web": "^1.22.0",
     "pdfjs-dist": "^5.2.133",
+    "phi3-mini-instruct": "npm:@xenova/transformers@latest",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -77,8 +77,7 @@
     "tailwindcss-animate": "^1.0.7",
     "unified": "^11.0.5",
     "vaul": "^0.9.3",
-    "zod": "^3.23.8",
-    "phi3-mini-instruct": "npm:@xenova/transformers@latest"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

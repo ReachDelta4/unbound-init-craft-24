@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useMeetingState } from '@/hooks/use-meeting-state';
-import { useSampleData } from '@/hooks/useSampleData';
+import { usePhi3Context } from '@/contexts/Phi3Context';
 import { useCallManager } from '@/hooks/useCallManager';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,7 +16,7 @@ interface MeetingContextValue {
   updateMeeting: (id: string, data: any) => Promise<void>;
   setActiveMeeting: (meeting: any) => void;
 
-  // Sample data
+  // AI insights from Phi-3
   insights: any;
   generateSummary: () => string;
 
@@ -70,9 +70,44 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     setActiveMeeting
   } = useMeetingState();
 
-  const { insights, generateSummary } = useSampleData();
+  // Get AI insights from Phi-3 context instead of sample data
+  const { insights } = usePhi3Context();
   
   const callManager = useCallManager();
+
+  // Generate summary from Phi-3 insights
+  const generateSummary = () => {
+    if (!insights || (!insights.painPoints?.length && !insights.recommendations?.length)) {
+      return "AI-generated summary will appear here after the call has some transcript data.";
+    }
+    
+    let summary = "Meeting Summary:\n\n";
+    
+    if (insights.painPoints?.length > 0) {
+      summary += "Key Pain Points:\n";
+      insights.painPoints.forEach((point: string, index: number) => {
+        summary += `${index + 1}. ${point}\n`;
+      });
+      summary += "\n";
+    }
+    
+    if (insights.recommendations?.length > 0) {
+      summary += "Recommendations:\n";
+      insights.recommendations.forEach((rec: string, index: number) => {
+        summary += `${index + 1}. ${rec}\n`;
+      });
+      summary += "\n";
+    }
+    
+    if (insights.nextActions?.length > 0) {
+      summary += "Next Actions:\n";
+      insights.nextActions.forEach((action: string, index: number) => {
+        summary += `${index + 1}. ${action}\n`;
+      });
+    }
+    
+    return summary;
+  };
 
   const value: MeetingContextValue = {
     // Meeting state
@@ -85,7 +120,7 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     updateMeeting,
     setActiveMeeting,
 
-    // Sample data
+    // AI insights from Phi-3
     insights,
     generateSummary,
 
