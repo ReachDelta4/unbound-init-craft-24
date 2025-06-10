@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,7 +11,7 @@ import ClientInterestBar from "./ClientInterestBar";
 import SimpleClientEmotion from "./SimpleClientEmotion";
 import CallStageIndicator from "./CallStageIndicator";
 import AIResponseSection from "./AIResponseSection";
-import ResizableScreenShare from "./ResizableScreenShare";
+import ScreenShareVideo from "./ScreenShareVideo";
 import LiveTranscriptDisplay from "./LiveTranscriptDisplay";
 import LeftInsightsPanel from "./LeftInsightsPanel";
 import RightInsightsPanel from "./RightInsightsPanel";
@@ -85,9 +86,6 @@ const MeetingWorkspace = ({
     }
   }, [stream]);
 
-  // Always show screen share preview when call is active and stream exists
-  const isScreenShareActive = isCallActive && !!stream;
-
   return (
     <div className={cn("h-full overflow-hidden relative", className)}>
       {/* Add Phi3Insights component to process transcript */}
@@ -152,12 +150,12 @@ const MeetingWorkspace = ({
               className="px-2 border-x border-border"
             >
               <ScrollArea className="h-full">
-                <div className="flex flex-col space-y-3 py-2">
-                  {/* Resizable Screen Share Preview */}
+                <div className="flex flex-col space-y-4 py-2">
+                  {/* Screen Share Video - Shows when call is active */}
                   <div className="flex-shrink-0">
-                    <ResizableScreenShare 
+                    <ScreenShareVideo 
                       stream={stream} 
-                      isActive={isScreenShareActive} 
+                      isActive={isCallActive} 
                     />
                   </div>
                   
