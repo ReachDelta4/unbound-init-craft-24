@@ -23,7 +23,7 @@ const MeetingPage = () => {
     disconnect: disconnectTranscription,
   } = useTranscriptionWebSocket();
 
-  // Screen sharing manager
+  // Screen sharing manager with enhanced callbacks
   const {
     isScreenSharing,
     stream,
@@ -31,8 +31,17 @@ const MeetingPage = () => {
     stopScreenShare,
     toggleScreenShare
   } = useScreenShareManager({
-    onStreamChange: () => {},
-    onScreenSharingChange: () => {}
+    onStreamChange: (newStream) => {
+      console.log('MeetingPage: Stream changed', {
+        hasStream: !!newStream,
+        streamId: newStream?.id,
+        videoTracks: newStream?.getVideoTracks().length || 0,
+        audioTracks: newStream?.getAudioTracks().length || 0
+      });
+    },
+    onScreenSharingChange: (sharing) => {
+      console.log('MeetingPage: Screen sharing state changed:', sharing);
+    }
   });
 
   // Meeting controls manager
@@ -44,7 +53,9 @@ const MeetingPage = () => {
     toggleMic,
     toggleVideo
   } = useMeetingControlsManager({
-    onCallStateChange: () => {},
+    onCallStateChange: (active) => {
+      console.log('MeetingPage: Call state changed:', active);
+    },
     onStartScreenShare: startScreenShare,
     onStopScreenShare: stopScreenShare,
     onConnectTranscription: connectTranscription,
@@ -84,13 +95,19 @@ const MeetingPage = () => {
     ]
   };
 
-  // Debug stream state
+  // Enhanced debugging for stream state changes
   useEffect(() => {
-    console.log('MeetingPage stream state changed:', {
+    console.log('MeetingPage: State update', {
       hasStream: !!stream,
       isScreenSharing,
       isCallActive,
-      streamId: stream?.id
+      streamId: stream?.id,
+      streamTracks: stream ? {
+        video: stream.getVideoTracks().length,
+        audio: stream.getAudioTracks().length,
+        videoActive: stream.getVideoTracks().some(t => t.enabled && t.readyState === 'live'),
+        audioActive: stream.getAudioTracks().some(t => t.enabled && t.readyState === 'live')
+      } : null
     });
   }, [stream, isScreenSharing, isCallActive]);
 
