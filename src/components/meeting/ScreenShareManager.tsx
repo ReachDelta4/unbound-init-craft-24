@@ -1,5 +1,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useScreenShareValidation } from '@/hooks/useScreenShareValidation';
+import { useScreenShareCleanup } from '@/hooks/useScreenShareCleanup';
+import { useScreenShareTrackHandlers } from '@/hooks/useScreenShareTrackHandlers';
 
 interface ScreenShareManagerProps {
   onStreamChange: (stream: MediaStream | null) => void;
@@ -11,46 +14,9 @@ export const useScreenShareManager = ({ onStreamChange, onScreenSharingChange }:
   const [stream, setStream] = useState<MediaStream | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Enhanced stream validation
-  const validateStream = useCallback((mediaStream: MediaStream | null): boolean => {
-    if (!mediaStream) {
-      console.log('ScreenShareManager: No stream to validate');
-      return false;
-    }
-
-    const videoTracks = mediaStream.getVideoTracks();
-    const audioTracks = mediaStream.getAudioTracks();
-    
-    console.log('ScreenShareManager: Validating stream', {
-      streamId: mediaStream.id,
-      videoTracks: videoTracks.length,
-      audioTracks: audioTracks.length,
-      videoTrackStates: videoTracks.map(t => ({ 
-        label: t.label, 
-        enabled: t.enabled, 
-        readyState: t.readyState,
-        muted: t.muted
-      })),
-      audioTrackStates: audioTracks.map(t => ({ 
-        label: t.label, 
-        enabled: t.enabled, 
-        readyState: t.readyState,
-        muted: t.muted
-      }))
-    });
-
-    // Check if we have at least one active video track
-    const hasActiveVideo = videoTracks.some(track => 
-      track.enabled && track.readyState === 'live'
-    );
-
-    if (!hasActiveVideo) {
-      console.warn('ScreenShareManager: No active video tracks found');
-      return false;
-    }
-
-    return true;
-  }, []);
+  const { validateStream } = useScreenShareValidation();
+  const { setupHealthCheck, cleanupStream, cleanup } = useScreenShareCleanup();
+  const { setupTrackHandlers } = useScreenShareTrackHandlers();
 
   // Start screen sharing with enhanced error handling
   const startScreenShare = useCallback(async () => {
@@ -60,7 +26,7 @@ export const useScreenShareManager = ({ onStreamChange, onScreenSharingChange }:
       // Always stop any existing stream first
       if (streamRef.current) {
         console.log("ScreenShareManager: Stopping existing stream first");
-        streamRef.current.getTracks().forEach(track => track.stop());
+        cleanupStream(streamRef.current);
         streamRef.current = null;
       }
       
@@ -95,36 +61,10 @@ export const useScreenShareManager = ({ onStreamChange, onScreenSharingChange }:
       onScreenSharingChange(true);
 
       // Set up track ended handlers for cleanup
-      const videoTracks = screenStream.getVideoTracks();
-      if (videoTracks.length > 0) {
-        const firstVideoTrack = videoTracks[0];
-        
-        firstVideoTrack.onended = () => {
-          console.log("ScreenShareManager: Screen share ended by user");
-          stopScreenShare();
-        };
-        
-        // Also listen for track state changes
-        firstVideoTrack.onmute = () => {
-          console.log("ScreenShareManager: Video track muted");
-        };
-        
-        firstVideoTrack.onunmute = () => {
-          console.log("ScreenShareManager: Video track unmuted");
-        };
-      }
+      setupTrackHandlers(screenStream, stopScreenShare);
 
-      // Monitor stream health
-      const healthCheckInterval = setInterval(() => {
-        if (streamRef.current && !validateStream(streamRef.current)) {
-          console.warn("ScreenShareManager: Stream health check failed, stopping");
-          clearInterval(healthCheckInterval);
-          stopScreenShare();
-        }
-      }, 5000);
-
-      // Store interval reference for cleanup
-      (screenStream as any)._healthCheckInterval = healthCheckInterval;
+      // Set up health monitoring
+      setupHealthCheck(screenStream, stopScreenShare, validateStream);
 
       return screenStream;
     } catch (error) {
@@ -139,32 +79,20 @@ export const useScreenShareManager = ({ onStreamChange, onScreenSharingChange }:
       
       throw error;
     }
-  }, [validateStream, onStreamChange, onScreenSharingChange]);
+  }, [validateStream, onStreamChange, onScreenSharingChange, cleanupStream, setupTrackHandlers, setupHealthCheck]);
 
   // Stop screen sharing with comprehensive cleanup
   const stopScreenShare = useCallback(() => {
     console.log("ScreenShareManager: Stopping screen share...");
     
-    // Clear health check interval if it exists
-    if (streamRef.current && (streamRef.current as any)._healthCheckInterval) {
-      clearInterval((streamRef.current as any)._healthCheckInterval);
-    }
-    
-    // Stop all tracks in both stream references
+    // Clean up stream references
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => {
-        console.log(`ScreenShareManager: Stopping track: ${track.kind} - ${track.label}`);
-        track.stop();
-      });
+      cleanupStream(streamRef.current);
       streamRef.current = null;
     }
     
     if (stream) {
-      stream.getTracks().forEach(track => {
-        if (track.readyState !== 'ended') {
-          track.stop();
-        }
-      });
+      cleanupStream(stream);
     }
     
     // Update state
@@ -176,7 +104,7 @@ export const useScreenShareManager = ({ onStreamChange, onScreenSharingChange }:
     onScreenSharingChange(false);
     
     console.log("ScreenShareManager: Screen share stopped successfully");
-  }, [stream, onStreamChange, onScreenSharingChange]);
+  }, [stream, onStreamChange, onScreenSharingChange, cleanupStream]);
 
   // Toggle screen sharing
   const toggleScreenShare = useCallback(async () => {
@@ -198,17 +126,16 @@ export const useScreenShareManager = ({ onStreamChange, onScreenSharingChange }:
       console.log("ScreenShareManager: Component unmounting, cleaning up");
       
       if (streamRef.current) {
-        if ((streamRef.current as any)._healthCheckInterval) {
-          clearInterval((streamRef.current as any)._healthCheckInterval);
-        }
-        streamRef.current.getTracks().forEach(track => track.stop());
+        cleanupStream(streamRef.current);
       }
       
       if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        cleanupStream(stream);
       }
+      
+      cleanup();
     };
-  }, []);
+  }, [cleanupStream, cleanup, stream]);
 
   return {
     isScreenSharing,
