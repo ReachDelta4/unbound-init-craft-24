@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-export const useMouseControlsManager = () => {
+export const useMeetingMouseManager = () => {
   const [showControls, setShowControls] = useState(true);
   const mouseTimeoutRef = useRef<number | null>(null);
 
