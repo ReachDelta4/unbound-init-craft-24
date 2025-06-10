@@ -1,93 +1,70 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink } from 'docx';
 
-export interface MeetingNote {
-  id: string;
-  meetingId: string;
-  text: string;
-  createdAt: Date;
-}
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 
-export interface MeetingChecklistItem {
-  id: string;
-  meetingId: string;
-  text: string;
-  completed: boolean;
-  createdAt: Date;
-}
+export const markdownToDocxBlob = async (markdown: string): Promise<Blob> => {
+  // Simple markdown to docx conversion
+  const lines = markdown.split('\n');
+  const children: Paragraph[] = [];
 
-export const convertMarkdownToDocx = async (markdownContent: string, title: string = 'Document'): Promise<Blob> => {
-  const lines = markdownContent.split('\n');
-  const paragraphs: Paragraph[] = [];
-
-  lines.forEach((line) => {
-    if (line.trim() === '') {
-      paragraphs.push(new Paragraph({}));
-      return;
-    }
-
-    // Handle headers
+  for (const line of lines) {
     if (line.startsWith('# ')) {
-      paragraphs.push(new Paragraph({
-        text: line.substring(2),
-        heading: HeadingLevel.HEADING_1,
-      }));
+      children.push(
+        new Paragraph({
+          text: line.substring(2),
+          heading: HeadingLevel.HEADING_1,
+        })
+      );
     } else if (line.startsWith('## ')) {
-      paragraphs.push(new Paragraph({
-        text: line.substring(3),
-        heading: HeadingLevel.HEADING_2,
-      }));
+      children.push(
+        new Paragraph({
+          text: line.substring(3),
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
     } else if (line.startsWith('### ')) {
-      paragraphs.push(new Paragraph({
-        text: line.substring(4),
-        heading: HeadingLevel.HEADING_3,
-      }));
+      children.push(
+        new Paragraph({
+          text: line.substring(4),
+          heading: HeadingLevel.HEADING_3,
+        })
+      );
+    } else if (line.trim() === '') {
+      children.push(new Paragraph({}));
     } else {
-      // Handle regular text with basic formatting
-      const textRuns: TextRun[] = [];
-      let currentText = line;
-
-      // Simple link handling
-      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      let lastIndex = 0;
-      let match;
-
-      while ((match = linkRegex.exec(line)) !== null) {
-        // Add text before link
-        if (match.index > lastIndex) {
-          textRuns.push(new TextRun(line.substring(lastIndex, match.index)));
-        }
-        
-        // Add link as regular text for now (docx links are complex)
-        textRuns.push(new TextRun({
-          text: match[1],
-          color: "0000FF",
-          underline: {},
-        }));
-        
-        lastIndex = match.index + match[0].length;
-      }
-
-      // Add remaining text
-      if (lastIndex < line.length) {
-        textRuns.push(new TextRun(line.substring(lastIndex)));
-      }
-
-      if (textRuns.length === 0) {
-        textRuns.push(new TextRun(line));
-      }
-
-      paragraphs.push(new Paragraph({
-        children: textRuns,
-      }));
+      children.push(
+        new Paragraph({
+          children: [new TextRun(line)],
+        })
+      );
     }
-  });
+  }
 
   const doc = new Document({
-    sections: [{
-      properties: {},
-      children: paragraphs,
-    }],
+    sections: [
+      {
+        children,
+      },
+    ],
   });
 
   return await Packer.toBlob(doc);
+};
+
+export const downloadDocxFromMarkdown = async (markdown: string, filename: string = 'document.docx') => {
+  try {
+    const blob = await markdownToDocxBlob(markdown);
+    
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error creating DOCX:', error);
+    throw error;
+  }
 };

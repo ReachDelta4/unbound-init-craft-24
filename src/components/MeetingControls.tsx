@@ -1,19 +1,16 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Play, StopCircle, Mic, Video, Loader2 } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Phone, Share2, Monitor } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import ScreenShareControl from "@/components/meeting/ScreenShareControl";
+import { useWebRTC } from "@/hooks/useWebRTC";
 
 interface MeetingControlsProps {
   isCallActive: boolean;
   callType: string | null;
   callDuration: number;
-  onCallTypeChange: (value: string) => void;
+  onCallTypeChange: (type: string) => void;
   onStartCall: () => void;
   onEndCall: () => void;
   isLoading?: boolean;
@@ -28,86 +25,125 @@ const MeetingControls = ({
   onStartCall,
   onEndCall,
   isLoading = false,
-  isSaving = false,
+  isSaving = false
 }: MeetingControlsProps) => {
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
+  const {
+    startScreenShare,
+    stopScreenShare,
+    isScreenSharing
+  } = useWebRTC();
+
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    
+    if (hrs > 0) {
+      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleChangeScreen = async () => {
+    // Stop current sharing and start new one
+    stopScreenShare();
+    setTimeout(async () => {
+      try {
+        await startScreenShare();
+      } catch (error) {
+        console.error('Failed to change screen share:', error);
+      }
+    }, 100);
   };
 
   return (
-    <div className="flex justify-center items-center gap-3 max-w-3xl mx-auto">
+    <div className="flex items-center justify-between w-full px-4">
+      {/* Left side - Call controls */}
+      <div className="flex items-center gap-3">
+        {!isCallActive ? (
+          <>
+            <Select value={callType || ""} onValueChange={onCallTypeChange}>
+              <SelectTrigger className="w-40 border-2 border-border">
+                <SelectValue placeholder="Select call type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="video">
+                  <div className="flex items-center gap-2">
+                    <Video className="h-4 w-4" />
+                    Video Call
+                  </div>
+                </SelectItem>
+                <SelectItem value="audio">
+                  <div className="flex items-center gap-2">
+                    <Mic className="h-4 w-4" />
+                    Audio Call
+                  </div>
+                </SelectItem>
+                <SelectItem value="screenshare">
+                  <div className="flex items-center gap-2">
+                    <Share2 className="h-4 w-4" />
+                    Screen Share
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Button
+              onClick={onStartCall}
+              disabled={!callType || isLoading}
+              className="bg-green-600 hover:bg-green-700 text-white border-2 border-border"
+            >
+              <Phone className="h-4 w-4 mr-2" />
+              {isLoading ? "Starting..." : "Start Call"}
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* Audio control */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-12 w-12 rounded-full border-2 border-border"
+            >
+              <Mic className="h-5 w-5" />
+            </Button>
+            
+            {/* Video control */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-12 w-12 rounded-full border-2 border-border"
+            >
+              <Video className="h-5 w-5" />
+            </Button>
+
+            {/* Screen sharing control */}
+            <ScreenShareControl
+              isSharing={isScreenSharing}
+              onStartSharing={startScreenShare}
+              onStopSharing={stopScreenShare}
+              onChangeScreen={handleChangeScreen}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Center - Call duration */}
       {isCallActive && (
-        <div className="flex items-center gap-2 bg-muted py-1 px-3 rounded-full">
-          <span className="animate-pulse text-green-500">●</span>
-          <span className="text-sm font-mono">{formatTime(callDuration)}</span>
+        <div className="text-sm font-medium text-muted-foreground">
+          {formatDuration(callDuration)}
         </div>
       )}
-      
-      <Select
-        value={callType || ""}
-        onValueChange={onCallTypeChange}
-        disabled={isCallActive || isLoading}
-      >
-        <SelectTrigger className="w-[180px] h-9">
-          <SelectValue placeholder="Select call type" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="video" className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Video size={16} />
-              <span>Video Meeting</span>
-            </div>
-          </SelectItem>
-          <SelectItem value="audio" className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Mic size={16} />
-              <span>Audio Call</span>
-            </div>
-          </SelectItem>
-        </SelectContent>
-      </Select>
 
-      {isCallActive ? (
-        <Button 
-          onClick={onEndCall} 
-          variant="destructive" 
-          size="sm"
-          className="gap-2 h-9 px-4"
+      {/* Right side - End call */}
+      {isCallActive && (
+        <Button
+          onClick={onEndCall}
           disabled={isSaving}
+          className="bg-red-600 hover:bg-red-700 text-white border-2 border-border"
         >
-          {isSaving ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <StopCircle size={16} />
-              End Call
-            </>
-          )}
-        </Button>
-      ) : (
-        <Button 
-          onClick={onStartCall} 
-          variant="default" 
-          size="sm"
-          disabled={!callType || isLoading}
-          className="bg-indigo-600 hover:bg-indigo-700 gap-2 h-9 px-4"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Starting...
-            </>
-          ) : (
-            <>
-              <Play size={16} />
-              Start Call
-            </>
-          )}
+          <Phone className="h-4 w-4 mr-2" />
+          {isSaving ? "Ending..." : "End Call"}
         </Button>
       )}
     </div>
