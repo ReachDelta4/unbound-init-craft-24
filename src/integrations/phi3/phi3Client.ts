@@ -1,4 +1,3 @@
-
 import { pipeline } from '@huggingface/transformers';
 import { PHI3_CONFIG, Phi3Insights, defaultPhi3Insights } from './phi3Config';
 
@@ -140,7 +139,7 @@ JSON response:`;
     }
   }
   
-  // Process transcript incrementally (simplified for testing)
+  // Process transcript incrementally using the Phi-3 model
   async processIncrementalUpdate(
     newSentence: string,
     previousInsights: Phi3Insights,
@@ -152,17 +151,142 @@ JSON response:`;
     
     console.log('Processing incremental update:', newSentence);
     
+    if (!this.isLoaded || !this.model) {
+      console.warn('Phi-3 model is not loaded, cannot process update');
+      return previousInsights;
+    }
+    
     try {
-      // For testing, just update emotions with simple logic
-      const emotions = previousInsights.emotions.map(emotion => ({
-        ...emotion,
-        level: Math.min(100, emotion.level + Math.floor(Math.random() * 10))
-      }));
+      // Combine recent history with new sentence for context
+      const context = [...recentHistory, newSentence].join(' ');
       
+      // Process emotions
+      const emotionsPrompt = `Analyze this part of a sales call transcript for client emotions. Return only a JSON array like: [{"emotion": "Interest", "level": 75}]
+
+Transcript: ${context}
+
+JSON response:`;
+      
+      const emotionsResponse = await this.generateResponse(emotionsPrompt, 200);
+      let emotions = previousInsights.emotions;
+      
+      try {
+        // Try to extract JSON from response
+        const jsonMatch = emotionsResponse.match(/\[.*\]/);
+        if (jsonMatch) {
+          emotions = JSON.parse(jsonMatch[0]);
+        }
+      } catch (e) {
+        console.error('Failed to parse emotions response:', emotionsResponse);
+      }
+      
+      // Process pain points
+      const painPointsPrompt = `Identify potential pain points from this sales call transcript segment. Return only a JSON array of strings.
+
+Transcript: ${context}
+
+JSON response:`;
+      
+      const painPointsResponse = await this.generateResponse(painPointsPrompt, 150);
+      let painPoints = previousInsights.painPoints;
+      
+      try {
+        const jsonMatch = painPointsResponse.match(/\[.*\]/);
+        if (jsonMatch) {
+          const newPainPoints = JSON.parse(jsonMatch[0]);
+          // Merge with existing pain points, avoiding duplicates
+          painPoints = [...new Set([...painPoints, ...newPainPoints])].slice(0, 5);
+        }
+      } catch (e) {
+        console.error('Failed to parse pain points response:', painPointsResponse);
+      }
+      
+      // Process objections
+      const objectionsPrompt = `Identify any objections or concerns from this sales call transcript segment. Return only a JSON array of strings.
+
+Transcript: ${context}
+
+JSON response:`;
+      
+      const objectionsResponse = await this.generateResponse(objectionsPrompt, 150);
+      let objections = previousInsights.objections;
+      
+      try {
+        const jsonMatch = objectionsResponse.match(/\[.*\]/);
+        if (jsonMatch) {
+          const newObjections = JSON.parse(jsonMatch[0]);
+          // Merge with existing objections, avoiding duplicates
+          objections = [...new Set([...objections, ...newObjections])].slice(0, 5);
+        }
+      } catch (e) {
+        console.error('Failed to parse objections response:', objectionsResponse);
+      }
+      
+      // Generate AI coaching suggestion
+      const coachingPrompt = `As an AI sales coach, suggest one specific question or talking point based on this sales call transcript segment:
+
+Transcript: ${context}
+
+Respond with only a brief, actionable suggestion (max 15 words):`;
+      
+      const aiCoaching = await this.generateResponse(coachingPrompt, 100);
+      
+      // Determine call stage
+      const stagePrompt = `Based on this sales call transcript segment, identify which stage the call is in. Choose only one from: Discovery, Presentation, Handling Objections, Closing, Follow-up.
+
+Transcript: ${context}
+
+Stage:`;
+      
+      const callStage = await this.generateResponse(stagePrompt, 50);
+      
+      // Generate recommendations
+      const recommendationsPrompt = `Based on this sales call transcript segment, what should the salesperson focus on next? Return only a JSON array of brief recommendation strings.
+
+Transcript: ${context}
+
+JSON response:`;
+      
+      const recommendationsResponse = await this.generateResponse(recommendationsPrompt, 150);
+      let recommendations = previousInsights.recommendations;
+      
+      try {
+        const jsonMatch = recommendationsResponse.match(/\[.*\]/);
+        if (jsonMatch) {
+          recommendations = JSON.parse(jsonMatch[0]).slice(0, 3);
+        }
+      } catch (e) {
+        console.error('Failed to parse recommendations response:', recommendationsResponse);
+      }
+      
+      // Generate next actions
+      const nextActionsPrompt = `Based on this sales call transcript segment, suggest specific next actions for the salesperson. Return only a JSON array of brief action strings.
+
+Transcript: ${context}
+
+JSON response:`;
+      
+      const nextActionsResponse = await this.generateResponse(nextActionsPrompt, 150);
+      let nextActions = previousInsights.nextActions;
+      
+      try {
+        const jsonMatch = nextActionsResponse.match(/\[.*\]/);
+        if (jsonMatch) {
+          nextActions = JSON.parse(jsonMatch[0]).slice(0, 3);
+        }
+      } catch (e) {
+        console.error('Failed to parse next actions response:', nextActionsResponse);
+      }
+      
+      // Return updated insights
       return {
-        ...previousInsights,
         emotions,
-        aiCoaching: `Consider asking about: "${newSentence.split(' ').slice(0, 3).join(' ')}..."`
+        painPoints,
+        objections,
+        recommendations,
+        nextActions,
+        aiCoaching: aiCoaching.split('\n')[0].trim(),
+        callStage: callStage.split('\n')[0].trim()
       };
     } catch (error) {
       console.error('Error processing incremental update:', error);

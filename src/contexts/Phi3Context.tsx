@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { usePhi3 } from '@/hooks/usePhi3';
 import { Phi3Insights, defaultPhi3Insights } from '@/integrations/phi3/phi3Config';
@@ -15,23 +14,24 @@ interface Phi3ContextType {
 
 const Phi3Context = createContext<Phi3ContextType | undefined>(undefined);
 
-export function Phi3Provider({ children, autoInitialize = false }: { 
+export function Phi3Provider({ children, autoInitialize = false, callActive = false }: { 
   children: ReactNode;
   autoInitialize?: boolean;
+  callActive?: boolean;
 }) {
   const phi3 = usePhi3();
   const [initAttempted, setInitAttempted] = useState(false);
 
-  // Auto-initialize if requested
+  // Auto-initialize if requested or when call becomes active
   useEffect(() => {
-    if (autoInitialize && !initAttempted && !phi3.isLoaded && !phi3.isLoading) {
+    if ((autoInitialize || callActive) && !initAttempted && !phi3.isLoaded && !phi3.isLoading) {
       console.log('Phi3Provider: Auto-initializing model...');
       phi3.initialize().then(result => {
         console.log('Phi3Provider: Auto-initialization result:', result);
       });
       setInitAttempted(true);
     }
-  }, [autoInitialize, initAttempted, phi3.isLoaded, phi3.isLoading, phi3.initialize]);
+  }, [autoInitialize, callActive, initAttempted, phi3.isLoaded, phi3.isLoading, phi3.initialize]);
 
   // Log status changes
   useEffect(() => {

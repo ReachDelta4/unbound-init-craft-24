@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePhi3Context } from '@/contexts/Phi3Context';
-import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Phi3ModelLoaderProps {
@@ -15,17 +14,25 @@ const Phi3ModelLoader: React.FC<Phi3ModelLoaderProps> = ({
   const { isLoaded, isLoading, loadError, initialize } = usePhi3Context();
   const [isInitiating, setIsInitiating] = useState(false);
 
-  const handleLoadModel = async () => {
-    setIsInitiating(true);
-    try {
-      const result = await initialize();
-      if (result.success && onLoad) {
-        onLoad();
+  // Auto-load the model when component mounts
+  useEffect(() => {
+    const loadModel = async () => {
+      if (!isLoaded && !isLoading && !isInitiating) {
+        setIsInitiating(true);
+        try {
+          console.log('Phi3ModelLoader: Auto-initializing model...');
+          const result = await initialize();
+          if (result.success && onLoad) {
+            onLoad();
+          }
+        } finally {
+          setIsInitiating(false);
+        }
       }
-    } finally {
-      setIsInitiating(false);
-    }
-  };
+    };
+    
+    loadModel();
+  }, [isLoaded, isLoading, isInitiating, initialize, onLoad]);
 
   // Don't display if model is loaded and we want to hide
   if (isLoaded && hideWhenLoaded) {
@@ -62,27 +69,12 @@ const Phi3ModelLoader: React.FC<Phi3ModelLoaderProps> = ({
           </div>
         </div>
 
-        {!isLoaded && !isLoading && (
+        {!isLoaded && !isLoading && !isInitiating && (
           <div>
             <p className="text-sm text-muted-foreground mb-2">
-              The Phi-3 Mini AI model needs to be loaded to analyze meeting transcripts.
+              The Phi-3 Mini AI model is being loaded to analyze meeting transcripts.
               This may take a few moments and requires around 2GB of memory.
             </p>
-            <Button
-              onClick={handleLoadModel}
-              disabled={isLoading || isInitiating}
-              variant="default"
-              className="w-full"
-            >
-              {isLoading || isInitiating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Loading Phi-3 Mini...
-                </>
-              ) : (
-                'Load Phi-3 Mini AI Model'
-              )}
-            </Button>
           </div>
         )}
 
