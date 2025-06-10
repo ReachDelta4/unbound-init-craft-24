@@ -3,10 +3,11 @@ import React, { useEffect } from "react";
 import MeetingLayout from "./MeetingLayout";
 import MeetingMainArea from "./MeetingMainArea";
 import MeetingControlsBar from "./MeetingControlsBar";
-import { useTranscriptionWebSocket } from "@/hooks/useTranscriptionWebSocket";
-import { useScreenShareManager } from "./ScreenShareManager";
-import { useMeetingControlsManager } from "./MeetingControlsManager";
 import { useMeetingMouseManager } from "./MeetingMouseManager";
+import { useMeetingTranscription } from "@/hooks/useMeetingTranscription";
+import { useMeetingScreenShare } from "@/hooks/useMeetingScreenShare";
+import { useMeetingControls } from "@/hooks/useMeetingControls";
+import { useMeetingInsights } from "@/hooks/useMeetingInsights";
 
 const MeetingPage = () => {
   // Transcription hook
@@ -14,11 +15,11 @@ const MeetingPage = () => {
     fullTranscript,
     realtimeText,
     fullSentences,
-    status: transcriptionStatus,
-    error: transcriptionError,
-    connect: connectTranscription,
-    disconnect: disconnectTranscription,
-  } = useTranscriptionWebSocket();
+    transcriptionStatus,
+    transcriptionError,
+    connectTranscription,
+    disconnectTranscription,
+  } = useMeetingTranscription();
 
   // Screen sharing manager with enhanced callbacks
   const {
@@ -27,19 +28,7 @@ const MeetingPage = () => {
     startScreenShare,
     stopScreenShare,
     toggleScreenShare
-  } = useScreenShareManager({
-    onStreamChange: (newStream) => {
-      console.log('MeetingPage: Stream changed', {
-        hasStream: !!newStream,
-        streamId: newStream?.id,
-        videoTracks: newStream?.getVideoTracks().length || 0,
-        audioTracks: newStream?.getAudioTracks().length || 0
-      });
-    },
-    onScreenSharingChange: (sharing) => {
-      console.log('MeetingPage: Screen sharing state changed:', sharing);
-    }
-  });
+  } = useMeetingScreenShare();
 
   // Meeting controls manager
   const {
@@ -49,14 +38,11 @@ const MeetingPage = () => {
     toggleCall,
     toggleMic,
     toggleVideo
-  } = useMeetingControlsManager({
-    onCallStateChange: (active) => {
-      console.log('MeetingPage: Call state changed:', active);
-    },
-    onStartScreenShare: startScreenShare,
-    onStopScreenShare: stopScreenShare,
-    onConnectTranscription: connectTranscription,
-    onDisconnectTranscription: disconnectTranscription,
+  } = useMeetingControls({
+    startScreenShare,
+    stopScreenShare,
+    connectTranscription,
+    disconnectTranscription,
     isScreenSharing
   });
 
@@ -64,33 +50,7 @@ const MeetingPage = () => {
   const { showControls } = useMeetingMouseManager();
 
   // Sample insights data
-  const insights = {
-    emotions: [
-      { emotion: "Interest", level: 75 },
-      { emotion: "Confusion", level: 25 },
-      { emotion: "Satisfaction", level: 60 },
-    ],
-    painPoints: [
-      "Current process is too manual",
-      "Lack of visibility into team productivity",
-      "Integration issues with existing tools"
-    ],
-    objections: [
-      "Price is too high compared to competitors",
-      "Implementation timeline is too long",
-      "Need approval from other stakeholders"
-    ],
-    recommendations: [
-      "Focus on ROI and long-term value",
-      "Offer implementation assistance",
-      "Provide case studies from similar clients"
-    ],
-    nextActions: [
-      "Schedule follow-up meeting with decision makers",
-      "Send pricing comparison document",
-      "Share implementation timeline"
-    ]
-  };
+  const insights = useMeetingInsights();
 
   // Enhanced debugging for stream state changes
   useEffect(() => {
