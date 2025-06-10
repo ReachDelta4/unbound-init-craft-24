@@ -23,7 +23,7 @@ const Phi3TestButton: React.FC = () => {
       <Button 
         variant="outline"
         size="sm"
-        className="absolute top-4 right-4 z-20"
+        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border shadow-sm"
         disabled
       >
         Model Loading...
@@ -36,7 +36,7 @@ const Phi3TestButton: React.FC = () => {
       onClick={handleTest}
       variant="outline"
       size="sm"
-      className="absolute top-4 right-4 z-20"
+      className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border shadow-sm"
     >
       Test AI
     </Button>

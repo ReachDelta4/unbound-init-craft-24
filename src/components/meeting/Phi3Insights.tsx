@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { usePhi3Context } from '@/contexts/Phi3Context';
 import Phi3ModelLoader from './Phi3ModelLoader';
@@ -19,11 +20,19 @@ const Phi3Insights: React.FC<Phi3InsightsProps> = ({
 
   // Process new sentences when they are added to the transcript history
   useEffect(() => {
+    console.log('Phi3Insights: Effect triggered', {
+      isLoaded,
+      transcriptHistoryLength: transcriptHistory.length,
+      lastSentence: transcriptHistory[transcriptHistory.length - 1]
+    });
+
     if (isLoaded && transcriptHistory.length > 0) {
       const lastSentence = transcriptHistory[transcriptHistory.length - 1];
       
       // Use the rest of the history as context, limiting to recent sentences
       const recentHistory = transcriptHistory.slice(0, -1).slice(-5);
+      
+      console.log('Phi3Insights: Processing sentence:', lastSentence);
       
       // Process the new sentence
       processIncrementalUpdate(lastSentence, recentHistory);
@@ -32,6 +41,7 @@ const Phi3Insights: React.FC<Phi3InsightsProps> = ({
 
   // Notify parent component when insights are updated
   useEffect(() => {
+    console.log('Phi3Insights: Insights updated:', insights);
     if (onInsightsUpdated) {
       onInsightsUpdated(insights);
     }
@@ -48,4 +58,4 @@ const Phi3Insights: React.FC<Phi3InsightsProps> = ({
   );
 };
 
-export default Phi3Insights; 
+export default Phi3Insights;

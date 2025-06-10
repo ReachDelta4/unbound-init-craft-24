@@ -9,6 +9,7 @@ import MeetingControls from "@/components/MeetingControls";
 import MeetingDialogsManager from "@/components/meeting/MeetingDialogsManager";
 import Phi3Insights from "@/components/meeting/Phi3Insights";
 import Phi3TestButton from "@/components/meeting/Phi3TestButton";
+import { Phi3Provider } from "@/contexts/Phi3Context";
 import { MeetingProvider, useMeetingContext } from "@/components/meeting/MeetingProvider";
 import { useMeetingPageLogic } from "@/hooks/useMeetingPageLogic";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
@@ -77,8 +78,10 @@ const MeetingPageContent = () => {
   return (
     <MainLayout>
       <div className="relative">
-        {/* Test button for debugging AI */}
-        <Phi3TestButton />
+        {/* Test button for debugging AI - positioned better */}
+        <div className="absolute top-4 right-4 z-30">
+          <Phi3TestButton />
+        </div>
         
         {/* Hidden Phi3Insights component to process transcript */}
         <Phi3Insights
@@ -174,9 +177,11 @@ const MeetingPageContent = () => {
 
 const MeetingPage = () => {
   return (
-    <MeetingProvider>
-      <MeetingPageContent />
-    </MeetingProvider>
+    <Phi3Provider autoInitialize={true}>
+      <MeetingProvider>
+        <MeetingPageContent />
+      </MeetingProvider>
+    </Phi3Provider>
   );
 };
 
