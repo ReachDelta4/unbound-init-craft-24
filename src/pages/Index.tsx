@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MeetingControls from "@/components/MeetingControls";
@@ -32,13 +33,23 @@ const Index = () => {
 
   const { saveNotesToMeeting, isSaving: isSavingNotes, notes, checklist } = useNotesState();
   const { insights, generateSummary } = useSampleData();
+  
+  // Use the WebRTC hook for screen sharing - this is the main source of the stream
   const {
     startScreenShare,
     stopScreenShare,
     isScreenSharing,
-    stream,
+    stream: webRTCStream,
     error: webRTCError
   } = useWebRTC();
+
+  console.log('Index: WebRTC state:', {
+    isScreenSharing,
+    hasWebRTCStream: !!webRTCStream,
+    webRTCStreamId: webRTCStream?.id,
+    webRTCStreamActive: webRTCStream?.active,
+    webRTCError
+  });
 
   const {
     status: wsStatus,
@@ -546,8 +557,8 @@ const Index = () => {
 
   console.log('Index: Rendering with state:', {
     isCallActive,
-    hasStream: !!stream,
-    streamActive: stream?.active,
+    hasWebRTCStream: !!webRTCStream,
+    webRTCStreamActive: webRTCStream?.active,
     isScreenSharing,
     activeMeetingStatus: activeMeeting?.status
   });
@@ -571,7 +582,7 @@ const Index = () => {
               }, 500);
             }
           }}
-          stream={stream}
+          stream={webRTCStream}
           className={`transition-all duration-300 ${
             isCallActive && !showControls 
               ? "h-screen" 
