@@ -1,23 +1,16 @@
 
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Video, VideoOff, Phone, Share, Share2, Monitor } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Phone, Monitor, Share2 } from "lucide-react";
 import MeetingWorkspace from "./MeetingWorkspace";
 import { useTranscriptionWebSocket } from "@/hooks/useTranscriptionWebSocket";
+import { useScreenShareManager } from "./ScreenShareManager";
+import { useMeetingControlsManager } from "./MeetingControlsManager";
+import { useMouseControlsManager } from "./MouseControlsManager";
 
 const MeetingPage = () => {
-  const navigate = useNavigate();
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [isMicOn, setIsMicOn] = useState(false);
-  const [isVideoOn, setIsVideoOn] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const controlsRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
-  const mouseTimeoutRef = useRef<number | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
 
   // Transcription hook
   const {
@@ -29,6 +22,38 @@ const MeetingPage = () => {
     connect: connectTranscription,
     disconnect: disconnectTranscription,
   } = useTranscriptionWebSocket();
+
+  // Screen sharing manager
+  const {
+    isScreenSharing,
+    stream,
+    startScreenShare,
+    stopScreenShare,
+    toggleScreenShare
+  } = useScreenShareManager({
+    onStreamChange: () => {},
+    onScreenSharingChange: () => {}
+  });
+
+  // Meeting controls manager
+  const {
+    isCallActive,
+    isMicOn,
+    isVideoOn,
+    toggleCall,
+    toggleMic,
+    toggleVideo
+  } = useMeetingControlsManager({
+    onCallStateChange: () => {},
+    onStartScreenShare: startScreenShare,
+    onStopScreenShare: stopScreenShare,
+    onConnectTranscription: connectTranscription,
+    onDisconnectTranscription: disconnectTranscription,
+    isScreenSharing
+  });
+
+  // Mouse controls manager
+  const { showControls } = useMouseControlsManager();
 
   // Sample insights data
   const insights = {
@@ -58,171 +83,6 @@ const MeetingPage = () => {
       "Share implementation timeline"
     ]
   };
-
-  // Start screen sharing
-  const startScreenShare = async () => {
-    try {
-      console.log("Requesting screen capture...");
-      
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          mediaSource: 'screen',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 }
-        },
-        audio: true
-      });
-      
-      console.log('Screen share started successfully:', {
-        videoTracks: screenStream.getVideoTracks().map(track => ({
-          label: track.label,
-          enabled: track.enabled,
-          readyState: track.readyState,
-          settings: track.getSettings()
-        })),
-        audioTracks: screenStream.getAudioTracks().map(track => ({
-          label: track.label,
-          enabled: track.enabled,
-          readyState: track.readyState
-        }))
-      });
-      
-      // Store in both state and ref
-      setStream(screenStream);
-      streamRef.current = screenStream;
-      setIsScreenSharing(true);
-
-      // Add event listener for when screen sharing ends
-      const videoTracks = screenStream.getVideoTracks();
-      if (videoTracks.length > 0) {
-        videoTracks[0].onended = () => {
-          console.log("Screen share ended by user");
-          stopScreenShare();
-        };
-      }
-
-      return screenStream;
-    } catch (error) {
-      console.error("Screen share error:", error);
-      throw error;
-    }
-  };
-
-  // Stop screen sharing
-  const stopScreenShare = () => {
-    console.log("Stopping screen share...");
-    
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => {
-        console.log(`Stopping track: ${track.kind} - ${track.label}`);
-        track.stop();
-      });
-      streamRef.current = null;
-    }
-    
-    if (stream) {
-      stream.getTracks().forEach(track => {
-        track.stop();
-      });
-    }
-    
-    setStream(null);
-    setIsScreenSharing(false);
-    
-    console.log("Screen share stopped");
-  };
-
-  // Start/stop call
-  const toggleCall = async () => {
-    if (isCallActive) {
-      setIsCallActive(false);
-      setIsMicOn(false);
-      setIsVideoOn(false);
-      if (isScreenSharing) {
-        stopScreenShare();
-      }
-      disconnectTranscription();
-    } else {
-      setIsCallActive(true);
-      setIsMicOn(true);
-      connectTranscription();
-      // Auto-start screen sharing when call starts
-      try {
-        await startScreenShare();
-      } catch (error) {
-        console.error("Failed to start screen sharing:", error);
-      }
-    }
-  };
-
-  // Toggle microphone
-  const toggleMic = () => {
-    setIsMicOn(!isMicOn);
-    // In a real app, would toggle actual microphone here
-  };
-
-  // Toggle video
-  const toggleVideo = () => {
-    setIsVideoOn(!isVideoOn);
-    // In a real app, would toggle actual camera here
-  };
-
-  // Toggle screen sharing
-  const toggleScreenShare = async () => {
-    if (isScreenSharing) {
-      stopScreenShare();
-    } else {
-      try {
-        await startScreenShare();
-      } catch (error) {
-        console.error("Error starting screen share:", error);
-      }
-    }
-  };
-
-  // Handle mouse movement to show/hide controls
-  const handleMouseMove = (e: MouseEvent) => {
-    const { clientY } = e;
-    const windowHeight = window.innerHeight;
-    
-    // Show controls when mouse is near the bottom 100px of the screen
-    const shouldShowControls = clientY > windowHeight - 100;
-    
-    if (shouldShowControls !== showControls) {
-      setShowControls(shouldShowControls);
-    }
-    
-    // Reset any existing timeout
-    if (mouseTimeoutRef.current) {
-      window.clearTimeout(mouseTimeoutRef.current);
-      mouseTimeoutRef.current = null;
-    }
-  };
-
-  // Set up mouse move listener
-  useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      if (mouseTimeoutRef.current) {
-        window.clearTimeout(mouseTimeoutRef.current);
-      }
-    };
-  }, [showControls]);
-
-  // Cleanup streams on unmount
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
 
   // Debug stream state
   useEffect(() => {

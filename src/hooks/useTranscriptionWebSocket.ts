@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Connection status types
@@ -15,6 +16,7 @@ interface UseTranscriptionWebSocketResult {
   error: string | null;
   realtimeText: string;
   fullSentences: string[];
+  fullTranscript: string;
   connect: () => void;
   disconnect: () => void;
 }
@@ -35,6 +37,9 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
   const [fullSentences, setFullSentences] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef(false);
+
+  // Compute full transcript from sentences
+  const fullTranscript = fullSentences.join('\n');
 
   // Open WebSocket connection
   const connect = useCallback(() => {
@@ -104,7 +109,8 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
     error,
     realtimeText,
     fullSentences,
+    fullTranscript,
     connect,
     disconnect,
   };
-} 
+}
