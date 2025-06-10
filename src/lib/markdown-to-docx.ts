@@ -1,3 +1,4 @@
+
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink } from 'docx';
 
 export interface MeetingNote {
@@ -91,3 +92,6 @@ export const convertMarkdownToDocx = async (markdownContent: string, title: stri
 
   return await Packer.toBlob(doc);
 };
+
+// Export the function with the expected name for backward compatibility
+export const markdownToDocxBlob = convertMarkdownToDocx;

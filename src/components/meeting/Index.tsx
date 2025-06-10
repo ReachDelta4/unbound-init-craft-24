@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Video, VideoOff, Phone, Share, Share2, Monitor } from "lucide-react";
 import MeetingWorkspace from "./MeetingWorkspace";
 import { useTranscriptionWebSocket } from "@/hooks/useTranscriptionWebSocket";
-import useScreenCapture from "@/hooks/useScreenCapture";
 
 const MeetingPage = () => {
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ const MeetingPage = () => {
 
   // Transcription hook
   const {
-    transcript,
+    fullTranscript,
     realtimeText,
     fullSentences,
     status: transcriptionStatus,
@@ -28,8 +28,8 @@ const MeetingPage = () => {
     disconnect: disconnectTranscription,
   } = useTranscriptionWebSocket();
 
-  // Screen capture hook
-  const { stream, startCapture, stopCapture } = useScreenCapture();
+  // Simple screen sharing state
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
   // Sample insights data
   const insights = {
@@ -60,21 +60,78 @@ const MeetingPage = () => {
     ]
   };
 
+  // Start screen sharing
+  const startScreenShare = async () => {
+    try {
+      console.log("Requesting screen capture...");
+      
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true
+      });
+      
+      console.log('Screen share video tracks:', screenStream.getVideoTracks().map(track => ({
+        label: track.label,
+        enabled: track.enabled,
+        readyState: track.readyState
+      })));
+      
+      setStream(screenStream);
+      setIsScreenSharing(true);
+
+      // Add event listener for when screen sharing ends
+      const videoTracks = screenStream.getVideoTracks();
+      if (videoTracks.length > 0) {
+        videoTracks[0].onended = () => {
+          console.log("Screen share ended by user");
+          stopScreenShare();
+        };
+      }
+
+      return screenStream;
+    } catch (error) {
+      console.error("Screen share error:", error);
+      throw error;
+    }
+  };
+
+  // Stop screen sharing
+  const stopScreenShare = () => {
+    console.log("Stopping screen share...");
+    
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        console.log(`Stopping track: ${track.kind} - ${track.label}`);
+        track.stop();
+      });
+    }
+    
+    setStream(null);
+    setIsScreenSharing(false);
+    
+    console.log("Screen share stopped");
+  };
+
   // Start/stop call
-  const toggleCall = () => {
+  const toggleCall = async () => {
     if (isCallActive) {
       setIsCallActive(false);
       setIsMicOn(false);
       setIsVideoOn(false);
       if (isScreenSharing) {
-        stopCapture();
-        setIsScreenSharing(false);
+        stopScreenShare();
       }
       disconnectTranscription();
     } else {
       setIsCallActive(true);
       setIsMicOn(true);
       connectTranscription();
+      // Auto-start screen sharing when call starts
+      try {
+        await startScreenShare();
+      } catch (error) {
+        console.error("Failed to start screen sharing:", error);
+      }
     }
   };
 
@@ -93,12 +150,10 @@ const MeetingPage = () => {
   // Toggle screen sharing
   const toggleScreenShare = async () => {
     if (isScreenSharing) {
-      stopCapture();
-      setIsScreenSharing(false);
+      stopScreenShare();
     } else {
       try {
-        await startCapture();
-        setIsScreenSharing(true);
+        await startScreenShare();
       } catch (error) {
         console.error("Error starting screen share:", error);
       }
@@ -152,7 +207,7 @@ const MeetingPage = () => {
       >
         <MeetingWorkspace
           isCallActive={isCallActive}
-          transcript={transcript}
+          transcript={fullTranscript || ""}
           insights={insights}
           realtimeText={realtimeText}
           fullSentences={fullSentences}
@@ -227,4 +282,4 @@ const MeetingPage = () => {
   );
 };
 
-export default MeetingPage; 
+export default MeetingPage;
