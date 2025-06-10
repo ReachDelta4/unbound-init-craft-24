@@ -16,6 +16,8 @@ const MeetingPage = () => {
   const controlsRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const mouseTimeoutRef = useRef<number | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Transcription hook
   const {
@@ -27,9 +29,6 @@ const MeetingPage = () => {
     connect: connectTranscription,
     disconnect: disconnectTranscription,
   } = useTranscriptionWebSocket();
-
-  // Simple screen sharing state
-  const [stream, setStream] = useState<MediaStream | null>(null);
 
   // Sample insights data
   const insights = {
@@ -66,17 +65,32 @@ const MeetingPage = () => {
       console.log("Requesting screen capture...");
       
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: {
+          mediaSource: 'screen',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 }
+        },
         audio: true
       });
       
-      console.log('Screen share video tracks:', screenStream.getVideoTracks().map(track => ({
-        label: track.label,
-        enabled: track.enabled,
-        readyState: track.readyState
-      })));
+      console.log('Screen share started successfully:', {
+        videoTracks: screenStream.getVideoTracks().map(track => ({
+          label: track.label,
+          enabled: track.enabled,
+          readyState: track.readyState,
+          settings: track.getSettings()
+        })),
+        audioTracks: screenStream.getAudioTracks().map(track => ({
+          label: track.label,
+          enabled: track.enabled,
+          readyState: track.readyState
+        }))
+      });
       
+      // Store in both state and ref
       setStream(screenStream);
+      streamRef.current = screenStream;
       setIsScreenSharing(true);
 
       // Add event listener for when screen sharing ends
@@ -99,9 +113,16 @@ const MeetingPage = () => {
   const stopScreenShare = () => {
     console.log("Stopping screen share...");
     
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        console.log(`Stopping track: ${track.kind} - ${track.label}`);
+        track.stop();
+      });
+      streamRef.current = null;
+    }
+    
     if (stream) {
       stream.getTracks().forEach(track => {
-        console.log(`Stopping track: ${track.kind} - ${track.label}`);
         track.stop();
       });
     }
@@ -190,6 +211,28 @@ const MeetingPage = () => {
       }
     };
   }, [showControls]);
+
+  // Cleanup streams on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  // Debug stream state
+  useEffect(() => {
+    console.log('Index.tsx stream state changed:', {
+      hasStream: !!stream,
+      isScreenSharing,
+      isCallActive,
+      streamId: stream?.id
+    });
+  }, [stream, isScreenSharing, isCallActive]);
 
   return (
     <div 
