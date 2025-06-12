@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "electron .",
-    "electron:dev": "concurrently \"cross-env BROWSER=none ELECTRON=true vite --port 8080\" \"wait-on http://localhost:8080 && electron .\"",
+    "electron:dev": "concurrently \"cross-env BROWSER=none ELECTRON=true vite --port 3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "cross-env ELECTRON=true vite build && electron-builder",
     "electron:preview": "cross-env ELECTRON=true vite build && electron ."
   },
@@ -59,6 +59,7 @@
     "jspdf": "^3.0.1",
     "lucide-react": "^0.462.0",
     "mammoth": "^1.9.0",
+    "n8n": "^1.97.1",
     "next-themes": "^0.3.0",
     "pdfjs-dist": "^5.2.133",
     "react": "^18.3.1",

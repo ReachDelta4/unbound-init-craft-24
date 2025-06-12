@@ -32,7 +32,7 @@ const createWindow = () => {
     }
     else {
         // In development, load from the dev server
-        mainWindow.loadURL('http://localhost:8080');
+        mainWindow.loadURL('http://localhost:3000');
         mainWindow.webContents.openDevTools();
     }
     // Handle window closed

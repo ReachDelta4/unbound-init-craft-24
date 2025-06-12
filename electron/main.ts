@@ -43,7 +43,7 @@ const createWindow = () => {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   } else {
     // In development, load from the dev server
-    mainWindow.loadURL('http://localhost:8080');
+    mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
   }
 
