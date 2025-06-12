@@ -3,6 +3,39 @@
 ## Project Overview
 Meeting Mojo is a sophisticated web application designed to revolutionize virtual meetings with real-time transcription, AI-powered insights, and comprehensive note-taking capabilities. The application captures both microphone and system audio, processes it through WebSocket connections to a transcription service, and provides a comprehensive meeting workspace with multiple interactive panels.
 
+## Electron App
+
+Meeting Mojo is now available as an Electron desktop application, providing native desktop integration while maintaining all the features of the web version.
+
+### Running the Electron App
+
+#### Development Mode
+To run the app in development mode:
+```bash
+npm run electron:dev
+```
+This will start both the Vite development server and the Electron app, with hot reloading enabled.
+
+#### Production Build
+To build the production version:
+```bash
+npm run electron:build
+```
+This will create distributable packages in the `release` folder.
+
+#### Preview Production Build
+To preview the production build without packaging:
+```bash
+npm run electron:preview
+```
+
+### Desktop Features
+The Electron version offers several advantages:
+- Native file system access for importing and exporting notes
+- Better audio capture capabilities
+- Runs as a standalone application without browser limitations
+- Improved performance for audio processing
+
 ## Core Architecture
 
 ### Frontend Framework
