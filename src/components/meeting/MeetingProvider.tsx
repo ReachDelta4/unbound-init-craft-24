@@ -1,7 +1,5 @@
-
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useState } from 'react';
 import { useMeetingState } from '@/hooks/use-meeting-state';
-import { usePhi3Context } from '@/contexts/Phi3Context';
 import { useCallManager } from '@/hooks/useCallManager';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,8 +14,14 @@ interface MeetingContextValue {
   updateMeeting: (id: string, data: any) => Promise<void>;
   setActiveMeeting: (meeting: any) => void;
 
-  // AI insights from Phi-3
-  insights: any;
+  // AI insights
+  insights: {
+    emotions: Array<{ emotion: string; level: number }>;
+    painPoints: string[];
+    objections: string[];
+    recommendations: string[];
+    nextActions: string[];
+  };
   generateSummary: () => string;
 
   // Call manager
@@ -70,12 +74,35 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     setActiveMeeting
   } = useMeetingState();
 
-  // Get AI insights from Phi-3 context instead of sample data
-  const { insights } = usePhi3Context();
+  // Default placeholder insights
+  const [insights] = useState({
+    emotions: [
+      { emotion: "Interest", level: 75 },
+      { emotion: "Concern", level: 30 },
+      { emotion: "Enthusiasm", level: 45 },
+      { emotion: "Skepticism", level: 20 }
+    ],
+    painPoints: [
+      "Current solution is too complex to implement",
+      "Training the team takes too much time"
+    ],
+    objections: [
+      "Price seems higher than competitors",
+      "Concerned about implementation timeline"
+    ],
+    recommendations: [
+      "Demonstrate ROI calculation",
+      "Offer implementation support options"
+    ],
+    nextActions: [
+      "Schedule technical demo",
+      "Send case study on similar implementation"
+    ]
+  });
   
   const callManager = useCallManager();
 
-  // Generate summary from Phi-3 insights
+  // Generate summary from insights
   const generateSummary = () => {
     if (!insights || (!insights.painPoints?.length && !insights.recommendations?.length)) {
       return "AI-generated summary will appear here after the call has some transcript data.";
@@ -120,7 +147,7 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     updateMeeting,
     setActiveMeeting,
 
-    // AI insights from Phi-3
+    // AI insights
     insights,
     generateSummary,
 

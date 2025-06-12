@@ -11,6 +11,7 @@ import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
 import { saveAs } from "file-saver";
 import { markdownToDocxBlob } from "@/lib/markdown-to-docx";
+import { saveToFile, openFile } from "@/lib/electron-utils";
 
 const MarkdownEditor = () => {
   const { activeMeeting } = useMeetingState();
@@ -59,22 +60,108 @@ const MarkdownEditor = () => {
     if (!htmlPreviewRef.current) return;
     const element = htmlPreviewRef.current;
     const pdf = new jsPDF({ unit: "pt", format: "a4" });
-    await pdf.html(element, {
-      x: 20,
-      y: 20,
-      html2canvas: { scale: 0.7, backgroundColor: null },
-      callback: () => {
-        pdf.save("notes.pdf");
-      }
-    });
+    
+    try {
+      await pdf.html(element, {
+        x: 20,
+        y: 20,
+        html2canvas: { scale: 0.7, backgroundColor: null },
+      });
+      
+      // Get PDF as blob/string
+      const pdfOutput = pdf.output('blob');
+      
+      // Use our utility function that works in both Electron and browser
+      const fileName = activeMeeting?.title ? 
+        `${activeMeeting.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes.pdf` : 
+        "notes.pdf";
+      
+      await saveToFile(await pdfOutput.text(), fileName, 'pdf');
+    } catch (error) {
+      toast && toast({
+        title: "Export failed",
+        description: "Could not export PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  // Import handler
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Export as DOCX
+  const handleExportDocx = async () => {
+    try {
+      const docxBlob = await markdownToDocxBlob(markdown, activeMeeting?.title || "Notes");
+      
+      const fileName = activeMeeting?.title ? 
+        `${activeMeeting.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes.docx` : 
+        "notes.docx";
+      
+      // Convert blob to string for our utility function
+      const reader = new FileReader();
+      reader.readAsText(docxBlob);
+      
+      reader.onload = async () => {
+        await saveToFile(reader.result as string, fileName, 'docx');
+      };
+    } catch (error) {
+      toast && toast({
+        title: "Export failed",
+        description: "Could not export DOCX. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Import handler using Electron utilities when available
+  const handleImport = async () => {
+    try {
+      const result = await openFile();
+      if (!result) return;
+      
+      const { content, filePath } = result;
+      const ext = filePath.split('.').pop()?.toLowerCase();
+      
+      if (ext === "txt" || ext === "md") {
+        setMarkdown(content);
+        setIsEditing(true);
+      } else if (ext === "docx") {
+        // For DOCX, we still need to use mammoth to convert
+        // This would need to be handled in the main process for Electron
+        // For now, we'll keep the file input approach for DOCX
+        toast && toast({
+          title: "DOCX import",
+          description: "Please use the file input for DOCX files for now.",
+          variant: "default",
+        });
+      } else if (ext === "pdf") {
+        // For PDF, we still need to use PDF.js to extract text
+        // This would need to be handled in the main process for Electron
+        // For now, we'll keep the file input approach for PDF
+        toast && toast({
+          title: "PDF import",
+          description: "Please use the file input for PDF files for now.",
+          variant: "default",
+        });
+      } else {
+        toast && toast({
+          title: "Unsupported file type",
+          description: "Please upload a .txt, .md, .docx, or .pdf file.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Fallback to traditional file input
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
+      }
+    }
+  };
+
+  // Traditional file input handler (fallback)
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase();
-    if (ext === "txt") {
+    if (ext === "txt" || ext === "md") {
       const text = await file.text();
       setMarkdown(text);
       setIsEditing(true);
@@ -97,7 +184,7 @@ const MarkdownEditor = () => {
     } else {
       toast && toast({
         title: "Unsupported file type",
-        description: "Please upload a .txt, .docx, or .pdf file.",
+        description: "Please upload a .txt, .md, .docx, or .pdf file.",
         variant: "destructive",
       });
     }
@@ -126,18 +213,16 @@ const MarkdownEditor = () => {
     <div className="bg-muted rounded-lg p-4">
       <div className="flex gap-2 mb-2 justify-end">
         <Button size="sm" variant="outline" onClick={handleExportPdf}>Export PDF</Button>
-        <label className="inline-block">
-          <input
-            type="file"
-            accept=".txt,.docx,.pdf"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleImport}
-          />
-          <Button size="sm" variant="outline" asChild>
-            <span>Import</span>
-          </Button>
-        </label>
+        <Button size="sm" variant="outline" onClick={handleExportDocx}>Export DOCX</Button>
+        <Button size="sm" variant="outline" onClick={handleImport}>Import</Button>
+        <input
+          type="file"
+          accept=".txt,.md,.docx,.pdf"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleFileInputChange}
+          aria-label="Import file"
+        />
       </div>
       {isEditing ? (
         <TextareaAutosize

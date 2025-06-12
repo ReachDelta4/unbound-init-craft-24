@@ -1,147 +1,80 @@
-
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { useScreenShareValidation } from '@/hooks/useScreenShareValidation';
-import { useScreenShareCleanup } from '@/hooks/useScreenShareCleanup';
-import { useScreenShareTrackHandlers } from '@/hooks/useScreenShareTrackHandlers';
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { isElectron } from '@/lib/browser-detection';
 
 interface ScreenShareManagerProps {
-  onStreamChange: (stream: MediaStream | null) => void;
-  onScreenSharingChange: (isSharing: boolean) => void;
+  onScreenShare: (stream: MediaStream | null) => void;
+  isScreenSharing: boolean;
 }
 
-export const useScreenShareManager = ({ onStreamChange, onScreenSharingChange }: ScreenShareManagerProps) => {
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+export default function ScreenShareManager({ onScreenShare, isScreenSharing }: ScreenShareManagerProps) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const { validateStream } = useScreenShareValidation();
-  const { setupHealthCheck, cleanupStream, cleanup } = useScreenShareCleanup();
-  const { setupTrackHandlers } = useScreenShareTrackHandlers();
-
-  // Start screen sharing with enhanced error handling
-  const startScreenShare = useCallback(async () => {
-    try {
-      console.log("ScreenShareManager: Starting screen capture...");
-      
-      // Always stop any existing stream first
-      if (streamRef.current) {
-        console.log("ScreenShareManager: Stopping existing stream first");
-        cleanupStream(streamRef.current);
-        streamRef.current = null;
-      }
-      
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 30, max: 30 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-      
-      // Validate the stream immediately
-      if (!validateStream(screenStream)) {
-        screenStream.getTracks().forEach(track => track.stop());
-        throw new Error('Invalid screen share stream received');
-      }
-      
-      console.log('ScreenShareManager: Screen share started successfully');
-      
-      // Store references
-      setStream(screenStream);
-      streamRef.current = screenStream;
-      setIsScreenSharing(true);
-      
-      // Notify parent components
-      onStreamChange(screenStream);
-      onScreenSharingChange(true);
-
-      // Set up track ended handlers for cleanup
-      setupTrackHandlers(screenStream, stopScreenShare);
-
-      // Set up health monitoring
-      setupHealthCheck(screenStream, stopScreenShare, validateStream);
-
-      return screenStream;
-    } catch (error) {
-      console.error("ScreenShareManager: Screen share error:", error);
-      
-      // Clean up on error
-      setStream(null);
-      streamRef.current = null;
-      setIsScreenSharing(false);
-      onStreamChange(null);
-      onScreenSharingChange(false);
-      
-      throw error;
-    }
-  }, [validateStream, onStreamChange, onScreenSharingChange, cleanupStream, setupTrackHandlers, setupHealthCheck]);
-
-  // Stop screen sharing with comprehensive cleanup
   const stopScreenShare = useCallback(() => {
-    console.log("ScreenShareManager: Stopping screen share...");
-    
-    // Clean up stream references
-    if (streamRef.current) {
-      cleanupStream(streamRef.current);
-      streamRef.current = null;
-    }
-    
-    if (stream) {
-      cleanupStream(stream);
-    }
-    
-    // Update state
-    setStream(null);
-    setIsScreenSharing(false);
-    
-    // Notify parent components
-    onStreamChange(null);
-    onScreenSharingChange(false);
-    
-    console.log("ScreenShareManager: Screen share stopped successfully");
-  }, [stream, onStreamChange, onScreenSharingChange, cleanupStream]);
+    onScreenShare(null);
+  }, [onScreenShare]);
 
-  // Toggle screen sharing
-  const toggleScreenShare = useCallback(async () => {
-    if (isScreenSharing) {
-      stopScreenShare();
-    } else {
-      try {
-        await startScreenShare();
-      } catch (error) {
-        console.error("ScreenShareManager: Error starting screen share:", error);
-        // Error is already handled in startScreenShare
-      }
-    }
-  }, [isScreenSharing, stopScreenShare, startScreenShare]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.log("ScreenShareManager: Component unmounting, cleaning up");
+  const startScreenShare = useCallback(async () => {
+    setLoading(true);
+    try {
+      let stream: MediaStream | null = null;
       
-      if (streamRef.current) {
-        cleanupStream(streamRef.current);
+      // Use Electron's desktop capturer if in Electron environment
+      if (isElectron()) {
+        // In most recent Electron versions, navigator.mediaDevices.getDisplayMedia works
+        // and shows the system picker dialog automatically.
+        // Using it avoids extra IPC complexity and permission issues.
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
+      } else {
+        // Standard browser screen sharing
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
       }
       
       if (stream) {
-        cleanupStream(stream);
+        // Add handler for when user stops sharing via browser UI
+        stream.getVideoTracks()[0].onended = () => {
+          stopScreenShare();
+        };
+        
+        onScreenShare(stream);
       }
-      
-      cleanup();
-    };
-  }, [cleanupStream, cleanup, stream]);
+    } catch (error) {
+      console.error('Failed to start screen sharing:', error);
+      toast({
+        title: 'Failed to start call',
+        description: isElectron() 
+          ? 'Screen sharing is not working in this Electron build. Please check permissions.'
+          : 'Screen sharing is not supported in this browser.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [onScreenShare, stopScreenShare, toast]);
 
-  return {
-    isScreenSharing,
-    stream,
-    startScreenShare,
-    stopScreenShare,
-    toggleScreenShare
-  };
-};
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      stopScreenShare();
+    };
+  }, [stopScreenShare]);
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+      disabled={loading}
+    >
+      {loading ? 'Starting...' : isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+    </Button>
+  );
+}

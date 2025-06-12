@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,8 +14,6 @@ import ScreenShareVideo from "./ScreenShareVideo";
 import LiveTranscriptDisplay from "./LiveTranscriptDisplay";
 import LeftInsightsPanel from "./LeftInsightsPanel";
 import RightInsightsPanel from "./RightInsightsPanel";
-import Phi3Insights from "./Phi3Insights";
-import { Phi3Insights as Phi3InsightsType } from "@/integrations/phi3/phi3Config";
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -49,31 +46,48 @@ const MeetingWorkspace = ({
   className,
   stream = null
 }: MeetingWorkspaceProps) => {
-  // State to manage phi3-generated insights
-  const [phi3Insights, setPhi3Insights] = useState<Phi3InsightsType | null>(null);
+  // Default placeholders for AI insights
+  const [dynamicInsights, setDynamicInsights] = useState({
+    emotions: [
+      { emotion: "Interest", level: 75 },
+      { emotion: "Concern", level: 30 },
+      { emotion: "Enthusiasm", level: 45 },
+      { emotion: "Skepticism", level: 20 }
+    ],
+    painPoints: [
+      "Current solution is too complex to implement",
+      "Training the team takes too much time"
+    ],
+    objections: [
+      "Price seems higher than competitors",
+      "Concerned about implementation timeline"
+    ],
+    recommendations: [
+      "Demonstrate ROI calculation",
+      "Offer implementation support options"
+    ],
+    nextActions: [
+      "Schedule technical demo",
+      "Send case study on similar implementation"
+    ]
+  });
 
-  // Use phi3 insights if available, otherwise use initial insights
-  const currentInsights = phi3Insights ? {
-    emotions: phi3Insights.emotions,
-    painPoints: phi3Insights.painPoints,
-    objections: phi3Insights.objections,
-    recommendations: phi3Insights.recommendations,
-    nextActions: phi3Insights.nextActions
-  } : initialInsights;
+  // Use initial insights if provided, otherwise use dynamic placeholders
+  const currentInsights = initialInsights || dynamicInsights;
 
-  // Current AI coaching response and call stage from phi3
-  const aiResponse = phi3Insights?.aiCoaching || "Ask about their current workflow and pain points to better understand their needs.";
-  const currentStage = phi3Insights?.callStage || "Discovery";
+  // Default placeholders for AI coaching and call stage
+  const [aiResponse, setAiResponse] = useState("Ask about their current workflow and pain points to better understand their needs.");
+  const [currentStage, setCurrentStage] = useState("Discovery");
   
   // Get the highest emotion level for the current client emotion
   const currentEmotion = 
-    phi3Insights?.emotions?.length > 0
-      ? [...phi3Insights.emotions].sort((a, b) => b.level - a.level)[0].emotion
+    currentInsights.emotions.length > 0
+      ? [...currentInsights.emotions].sort((a, b) => b.level - a.level)[0].emotion
       : "Interested";
   
   // Get client interest level (using the Interest emotion if available)
   const clientInterest = 
-    phi3Insights?.emotions?.find(e => e.emotion === "Interest")?.level || 75;
+    currentInsights.emotions.find(e => e.emotion === "Interest")?.level || 75;
 
   // Debug stream information when it changes
   useEffect(() => {
@@ -105,14 +119,6 @@ const MeetingWorkspace = ({
 
   return (
     <div className={cn("h-full overflow-hidden relative", className)}>
-      {/* Add Phi3Insights component to process transcript */}
-      <Phi3Insights 
-        liveText={realtimeText}
-        transcriptHistory={fullSentences}
-        onInsightsUpdated={setPhi3Insights}
-        className="hidden"
-      />
-
       <div className="h-full flex flex-col">
         {/* Compact Top Section */}
         <div className="flex-shrink-0 p-3 space-y-2 border-b border-border">

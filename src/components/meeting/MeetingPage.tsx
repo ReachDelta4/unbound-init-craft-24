@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import MeetingLayout from "./MeetingLayout";
 import MeetingMainArea from "./MeetingMainArea";
