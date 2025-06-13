@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sendToWebhook } from '@/utils/webhookUtils';
 
 // Connection status types
 export type TranscriptionWSStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -18,6 +19,7 @@ interface UseTranscriptionWebSocketResult {
   fullTranscript: string;
   connect: () => void;
   disconnect: () => void;
+  setWebhookUrl: (url: string | null) => void;
 }
 
 /**
@@ -34,11 +36,19 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
   const [error, setError] = useState<string | null>(null);
   const [realtimeText, setRealtimeText] = useState('');
   const [fullSentences, setFullSentences] = useState<string[]>([]);
+  const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef(false);
 
   // Compute full transcript from sentences
   const fullTranscript = fullSentences.join('\n');
+
+  // Send sentence to webhook if URL is configured
+  const sendSentenceToWebhook = useCallback(async (sentence: string) => {
+    if (webhookUrl) {
+      await sendToWebhook(webhookUrl, { sentence });
+    }
+  }, [webhookUrl]);
 
   // Open WebSocket connection
   const connect = useCallback(() => {
@@ -68,12 +78,30 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
           const msg: BackendMessage = JSON.parse(event.data);
           
           if (msg.type === 'realtime' && msg.text) {
+            // Check for full sentences in realtime text and send to webhook
+            if (webhookUrl) {
+              // Check if the text ends with a period, question mark, or exclamation point
+              const sentences = msg.text.match(/[^.!?]+[.!?]+/g);
+              if (sentences && sentences.length > 0) {
+                // Send each complete sentence to the webhook
+                sentences.forEach((sentence: string) => {
+                  sendSentenceToWebhook(sentence.trim());
+                });
+              }
+            }
+            
             // Update UI immediately with each partial transcription
             setRealtimeText(msg.text);
             console.log('TranscriptionWebSocket: Received realtime text', msg.text);
           } else if (msg.type === 'fullSentence' && msg.text) {
             // Add the finalized sentence to history
             console.log('TranscriptionWebSocket: Received full sentence', msg.text);
+            
+            // Send full sentence to webhook if configured
+            if (webhookUrl) {
+              sendSentenceToWebhook(msg.text);
+            }
+            
             setFullSentences(prev => {
               const newSentences = [...prev, msg.text];
               console.log('TranscriptionWebSocket: Updated fullSentences', newSentences);
@@ -91,7 +119,7 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
       setError('Failed to connect WebSocket');
       console.error('TranscriptionWebSocket: Failed to connect', err);
     }
-  }, []);
+  }, [webhookUrl, sendSentenceToWebhook]);
 
   // Close WebSocket connection
   const disconnect = useCallback(() => {
@@ -123,5 +151,6 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
     fullTranscript,
     connect,
     disconnect,
+    setWebhookUrl,
   };
 }

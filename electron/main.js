@@ -106,7 +106,7 @@ async function startLlamaServer() {
   
   // Path to the llama-server executable and model
   const llamaServerPath = path.join(__dirname, '../resources/llama-cpp/llama-server.exe');
-  const modelPath = path.join(__dirname, '../models/Phi-3-mini-128k-instruct.Q4_K_M.gguf');
+  const modelPath = path.join(__dirname, '../models/Phi-3-mini-128k-instruct.Q2_K.gguf');
   
   // Check if the llama-server executable exists
   if (!fs.existsSync(llamaServerPath)) {

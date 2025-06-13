@@ -1,8 +1,24 @@
-
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useMixedAudioWebSocket } from '@/hooks/useMixedAudioWebSocket';
+import { useTranscriptionWebSocket } from '@/hooks/useTranscriptionWebSocket';
+import { sendToWebhook } from '@/utils/webhookUtils';
+
+// Define the interface for the response from the webhook
+interface WebhookResponse {
+  insights?: {
+    emotions?: Array<{ emotion: string; level: number }>;
+    painPoints?: string[];
+    objections?: string[];
+    recommendations?: string[];
+    nextActions?: string[];
+  };
+  clientEmotion?: string;
+  clientInterest?: number;
+  callStage?: string;
+  aiCoachingSuggestion?: string;
+}
 
 export const useCallManager = () => {
   const { toast } = useToast();
@@ -26,9 +42,222 @@ export const useCallManager = () => {
     setAutoReconnect
   } = useMixedAudioWebSocket();
 
+  // Transcription webhook support
+  const {
+    setWebhookUrl
+  } = useTranscriptionWebSocket();
+
+  // State for insights from webhook
+  const [insights, setInsights] = useState({
+    emotions: [
+      { emotion: "Interest", level: 75 },
+      { emotion: "Concern", level: 30 },
+      { emotion: "Enthusiasm", level: 45 },
+      { emotion: "Skepticism", level: 20 }
+    ],
+    painPoints: [
+      "Current solution is too complex to implement",
+      "Training the team takes too much time"
+    ],
+    objections: [
+      "Price seems higher than competitors",
+      "Concerned about implementation timeline"
+    ],
+    recommendations: [
+      "Demonstrate ROI calculation",
+      "Offer implementation support options"
+    ],
+    nextActions: [
+      "Schedule technical demo",
+      "Send case study on similar implementation"
+    ]
+  });
+  
+  const [clientEmotion, setClientEmotion] = useState<string>("Interest");
+  const [clientInterest, setClientInterest] = useState<number>(75);
+  const [callStage, setCallStage] = useState<string>("Discovery");
+  const [aiCoachingSuggestion, setAiCoachingSuggestion] = useState<string>(
+    "Ask about their current workflow and pain points to better understand their needs."
+  );
+
+  // Use the webhook URL with AI endpoint
+  const [webhookUrl, setWebhookUrlState] = useState<string | null>("http://127.0.0.1:5678/webhook-test");
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+  const [isProcessingSentence, setIsProcessingSentence] = useState(false);
   const micStreamRef = useRef<MediaStream | null>(null);
   const systemStreamRef = useRef<MediaStream | null>(null);
+  const lastSentenceRef = useRef<string | null>(null);
+  const sentenceQueueRef = useRef<string[]>([]);
+
+  // Track the last processed sentence to avoid duplicate webhook calls
+  const [processedSentences, setProcessedSentences] = useState<Set<string>>(new Set());
+  const [webhookErrorCount, setWebhookErrorCount] = useState<number>(0);
+
+  const setTranscriptionWebhookUrl = useCallback((url: string | null) => {
+    // Keep the URL as provided, don't modify it
+    setWebhookUrlState(url);
+    setWebhookUrl(url);
+  }, [setWebhookUrl]);
+
+  // Use effect to set the webhook URL on component initialization
+  useEffect(() => {
+    // Default webhook URL
+    setWebhookUrl("http://127.0.0.1:5678/webhook-test");
+  }, [setWebhookUrl]);
+
+  // Update UI based on webhook response
+  const updateInsightsFromResponse = useCallback((response: WebhookResponse) => {
+    if (!response) {
+      console.warn('CallManager: Received empty response from webhook');
+      return;
+    }
+    
+    try {
+      console.log('CallManager: Updating insights from webhook response', response);
+      
+      // Update insights if provided
+      if (response.insights) {
+        setInsights(prevInsights => {
+          // Create a safe copy with fallbacks to previous values
+          return {
+            emotions: Array.isArray(response.insights?.emotions) 
+              ? response.insights.emotions 
+              : prevInsights.emotions,
+            painPoints: Array.isArray(response.insights?.painPoints) 
+              ? response.insights.painPoints 
+              : prevInsights.painPoints,
+            objections: Array.isArray(response.insights?.objections) 
+              ? response.insights.objections 
+              : prevInsights.objections,
+            recommendations: Array.isArray(response.insights?.recommendations) 
+              ? response.insights.recommendations 
+              : prevInsights.recommendations,
+            nextActions: Array.isArray(response.insights?.nextActions) 
+              ? response.insights.nextActions 
+              : prevInsights.nextActions
+          };
+        });
+      }
+      
+      // Update client emotion if provided
+      if (typeof response.clientEmotion === 'string' && response.clientEmotion.trim() !== '') {
+        setClientEmotion(response.clientEmotion);
+      }
+      
+      // Update client interest if provided and is a valid number
+      if (typeof response.clientInterest === 'number' && !isNaN(response.clientInterest)) {
+        // Ensure the value is within 0-100 range
+        const safeInterest = Math.max(0, Math.min(100, response.clientInterest));
+        setClientInterest(safeInterest);
+      }
+      
+      // Update call stage if provided
+      if (typeof response.callStage === 'string' && response.callStage.trim() !== '') {
+        setCallStage(response.callStage);
+      }
+      
+      // Update AI coaching suggestion if provided
+      if (typeof response.aiCoachingSuggestion === 'string' && response.aiCoachingSuggestion.trim() !== '') {
+        setAiCoachingSuggestion(response.aiCoachingSuggestion);
+      }
+    } catch (error) {
+      console.error('CallManager: Error processing webhook response:', error);
+    }
+  }, []);
+
+  // Process sentences from the queue one at a time
+  const processSentenceQueue = useCallback(async () => {
+    if (isProcessingSentence || !webhookUrl || sentenceQueueRef.current.length === 0) {
+      return;
+    }
+
+    try {
+      setIsProcessingSentence(true);
+      
+      // Get the next sentence from the queue
+      const sentence = sentenceQueueRef.current[0];
+      
+      console.log('CallManager: Processing sentence from queue:', sentence);
+      
+      try {
+        // Send to webhook and wait for response
+        const response = await sendToWebhook(webhookUrl, { sentence });
+        
+        console.log('CallManager: Webhook response for sentence:', response);
+        
+        // Update insights based on the response
+        updateInsightsFromResponse(response);
+        
+        // Reset error count on success
+        setWebhookErrorCount(0);
+      } catch (error) {
+        console.error('Webhook error:', error);
+        // Increment error count
+        setWebhookErrorCount(prev => prev + 1);
+        
+        // If we've had multiple errors, show toast notification
+        if (webhookErrorCount >= 2) {
+          toast({
+            title: "Webhook Connection Issue",
+            description: "Unable to connect to the webhook. Make sure the URL is correct and the service is running.",
+            variant: "destructive",
+          });
+          // Reset count after notification
+          setWebhookErrorCount(0);
+        }
+      }
+      
+      // Remove the processed sentence from the queue
+      sentenceQueueRef.current.shift();
+      
+      // Update last sentence reference
+      lastSentenceRef.current = sentence;
+      
+      // Add to processed set
+      setProcessedSentences(prev => {
+        const updated = new Set(prev);
+        updated.add(sentence);
+        return updated;
+      });
+      
+    } catch (error) {
+      console.error('Error processing sentence:', error);
+    } finally {
+      setIsProcessingSentence(false);
+      
+      // If there are more sentences in the queue, process the next one
+      if (sentenceQueueRef.current.length > 0) {
+        processSentenceQueue();
+      }
+    }
+  }, [isProcessingSentence, webhookUrl, updateInsightsFromResponse, webhookErrorCount, toast]);
+
+  // Monitor fullTranscript changes to detect new sentences and add them to the queue
+  useEffect(() => {
+    if (webhookUrl && fullTranscript) {
+      const sentences = fullTranscript.split('\n').filter(Boolean);
+      
+      // Find the most recent sentence (if any)
+      if (sentences.length > 0) {
+        // Check all sentences that haven't been processed yet
+        sentences.forEach(sentence => {
+          if (sentence !== lastSentenceRef.current && !processedSentences.has(sentence) && 
+              !sentenceQueueRef.current.includes(sentence)) {
+            
+            console.log('CallManager: Adding new sentence to queue:', sentence);
+            
+            // Add to queue
+            sentenceQueueRef.current.push(sentence);
+          }
+        });
+        
+        // Try to process the queue if we're not already processing
+        if (!isProcessingSentence && sentenceQueueRef.current.length > 0) {
+          processSentenceQueue();
+        }
+      }
+    }
+  }, [webhookUrl, fullTranscript, processedSentences, isProcessingSentence, processSentenceQueue]);
 
   const extractAudioStreams = useCallback((combinedStream: MediaStream) => {
     const audioTracks = combinedStream.getAudioTracks();
@@ -99,6 +328,42 @@ export const useCallManager = () => {
     try {
       setConnectionTimedOut(false);
       setAutoReconnect(true);
+      
+      // Reset sentence tracking on new call
+      lastSentenceRef.current = null;
+      sentenceQueueRef.current = [];
+      setProcessedSentences(new Set());
+      setIsProcessingSentence(false);
+      
+      // Reset insights to defaults
+      setInsights({
+        emotions: [
+          { emotion: "Interest", level: 75 },
+          { emotion: "Concern", level: 30 },
+          { emotion: "Enthusiasm", level: 45 },
+          { emotion: "Skepticism", level: 20 }
+        ],
+        painPoints: [
+          "Current solution is too complex to implement",
+          "Training the team takes too much time"
+        ],
+        objections: [
+          "Price seems higher than competitors",
+          "Concerned about implementation timeline"
+        ],
+        recommendations: [
+          "Demonstrate ROI calculation",
+          "Offer implementation support options"
+        ],
+        nextActions: [
+          "Schedule technical demo",
+          "Send case study on similar implementation"
+        ]
+      });
+      setClientEmotion("Interest");
+      setClientInterest(75);
+      setCallStage("Discovery");
+      setAiCoachingSuggestion("Ask about their current workflow and pain points to better understand their needs.");
       
       console.log('CallManager: Starting meeting in database...');
       await startMeeting(callType);
@@ -214,6 +479,12 @@ export const useCallManager = () => {
     disconnectMixedAudio();
     stopScreenShare();
     
+    // Reset sentence tracking on call end
+    lastSentenceRef.current = null;
+    sentenceQueueRef.current = [];
+    setProcessedSentences(new Set());
+    setIsProcessingSentence(false);
+    
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach(track => {
         console.log(`Explicitly stopping mic track: ${track.kind} - ${track.label}`);
@@ -252,19 +523,29 @@ export const useCallManager = () => {
     liveTranscript,
     fullTranscript,
     isStreaming,
-    
-    // Connection state
+    reconnectAttempts,
     connectionTimedOut,
     setConnectionTimedOut,
     
-    // Actions
+    // Webhook configuration
+    webhookUrl,
+    setWebhookUrl: setTranscriptionWebhookUrl,
+    
+    // Call control methods
     startCall,
     endCall,
     reconnectTranscription,
     handleConnectionTimeout,
     
-    // Stream refs
+    // Refs to media streams
     micStreamRef,
-    systemStreamRef
+    systemStreamRef,
+    
+    // Insights and UI state
+    insights,
+    clientEmotion,
+    clientInterest,
+    callStage,
+    aiCoachingSuggestion
   };
 };

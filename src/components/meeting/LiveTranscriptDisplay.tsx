@@ -1,19 +1,45 @@
-
 import React, { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
+import TranscriptionStatus from "@/components/meeting/TranscriptionStatus";
 
 interface LiveTranscriptDisplayProps {
   liveText: string;
   transcriptHistory: string[];
+  transcriptionStatus?: TranscriptionWSStatus;
+  transcriptionError?: string | null;
+  onReconnect?: () => void;
+  webhookUrl?: string | null;
+  onWebhookUrlChange?: (url: string | null) => void;
 }
 
-const LiveTranscriptDisplay = ({ liveText, transcriptHistory }: LiveTranscriptDisplayProps) => {
+const LiveTranscriptDisplay = ({ 
+  liveText, 
+  transcriptHistory,
+  transcriptionStatus = "disconnected",
+  transcriptionError = null,
+  onReconnect = () => {},
+  webhookUrl = null,
+  onWebhookUrlChange = () => {}
+}: LiveTranscriptDisplayProps) => {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   return (
     <div className="bg-card border-2 border-border rounded-lg p-4 shadow-sm">
+      {/* Header with Transcription Status */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-md font-medium">Live Transcript</h3>
+        <TranscriptionStatus
+          status={transcriptionStatus}
+          error={transcriptionError}
+          onReconnect={onReconnect}
+          webhookUrl={webhookUrl}
+          onWebhookUrlChange={onWebhookUrlChange}
+        />
+      </div>
+      
       {/* Live Transcript */}
       <div className="mb-4">
         <div className="bg-green-50 dark:bg-green-950/20 border-2 border-green-200 dark:border-green-800 rounded-lg p-4">

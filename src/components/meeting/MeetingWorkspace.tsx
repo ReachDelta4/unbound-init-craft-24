@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import FloatingNotesWidget from "@/components/FloatingNotesWidget";
@@ -32,6 +32,12 @@ interface MeetingWorkspaceProps {
   onReconnectTranscription?: () => void;
   className?: string;
   stream?: MediaStream | null;
+  webhookUrl?: string | null;
+  onWebhookUrlChange?: (url: string | null) => void;
+  clientEmotion?: string;
+  clientInterest?: number;
+  callStage?: string;
+  aiCoachingSuggestion?: string;
 }
 
 const MeetingWorkspace = ({ 
@@ -44,50 +50,22 @@ const MeetingWorkspace = ({
   transcriptionError = null,
   onReconnectTranscription = () => {},
   className,
-  stream = null
+  stream = null,
+  webhookUrl = null,
+  onWebhookUrlChange = () => {},
+  clientEmotion: providedClientEmotion = "Interest",
+  clientInterest: providedClientInterest = 75,
+  callStage: providedCallStage = "Discovery",
+  aiCoachingSuggestion: providedAiResponse = "Ask about their current workflow and pain points to better understand their needs."
 }: MeetingWorkspaceProps) => {
-  // Default placeholders for AI insights
-  const [dynamicInsights, setDynamicInsights] = useState({
-    emotions: [
-      { emotion: "Interest", level: 75 },
-      { emotion: "Concern", level: 30 },
-      { emotion: "Enthusiasm", level: 45 },
-      { emotion: "Skepticism", level: 20 }
-    ],
-    painPoints: [
-      "Current solution is too complex to implement",
-      "Training the team takes too much time"
-    ],
-    objections: [
-      "Price seems higher than competitors",
-      "Concerned about implementation timeline"
-    ],
-    recommendations: [
-      "Demonstrate ROI calculation",
-      "Offer implementation support options"
-    ],
-    nextActions: [
-      "Schedule technical demo",
-      "Send case study on similar implementation"
-    ]
-  });
-
-  // Use initial insights if provided, otherwise use dynamic placeholders
-  const currentInsights = initialInsights || dynamicInsights;
-
-  // Default placeholders for AI coaching and call stage
-  const [aiResponse, setAiResponse] = useState("Ask about their current workflow and pain points to better understand their needs.");
-  const [currentStage, setCurrentStage] = useState("Discovery");
+  // Use insights from props (which can be updated by webhook responses)
+  const currentInsights = initialInsights;
   
-  // Get the highest emotion level for the current client emotion
-  const currentEmotion = 
-    currentInsights.emotions.length > 0
-      ? [...currentInsights.emotions].sort((a, b) => b.level - a.level)[0].emotion
-      : "Interested";
-  
-  // Get client interest level (using the Interest emotion if available)
-  const clientInterest = 
-    currentInsights.emotions.find(e => e.emotion === "Interest")?.level || 75;
+  // Use provided values from webhook responses or fallback to defaults
+  const currentEmotion = providedClientEmotion;
+  const clientInterestLevel = providedClientInterest;
+  const currentStage = providedCallStage;
+  const aiResponse = providedAiResponse;
 
   // Debug stream information when it changes
   useEffect(() => {
@@ -125,7 +103,7 @@ const MeetingWorkspace = ({
           {/* First row: Client Interest (20%), Client Emotion, Call Stage, User Controls */}
           <div className="flex gap-3 items-center">
             <div className="w-1/5">
-              <ClientInterestBar interestLevel={clientInterest} />
+              <ClientInterestBar interestLevel={clientInterestLevel} />
             </div>
             <div className="flex-1">
               <SimpleClientEmotion currentEmotion={currentEmotion} />
@@ -187,6 +165,11 @@ const MeetingWorkspace = ({
                     <LiveTranscriptDisplay 
                       liveText={realtimeText}
                       transcriptHistory={fullSentences}
+                      transcriptionStatus={transcriptionStatus}
+                      transcriptionError={transcriptionError}
+                      onReconnect={onReconnectTranscription}
+                      webhookUrl={webhookUrl}
+                      onWebhookUrlChange={onWebhookUrlChange}
                     />
                   </div>
                 </div>

@@ -2,17 +2,22 @@ import React from "react";
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
+import TranscriptionSettings from "./TranscriptionSettings";
 
 interface TranscriptionStatusProps {
   status: TranscriptionWSStatus;
   error: string | null;
   onReconnect: () => void;
+  onWebhookUrlChange: (url: string | null) => void;
+  webhookUrl: string | null;
 }
 
 const TranscriptionStatus: React.FC<TranscriptionStatusProps> = ({
   status,
   error,
   onReconnect,
+  onWebhookUrlChange,
+  webhookUrl,
 }) => {
   return (
     <div className="flex items-center gap-2">
@@ -63,6 +68,14 @@ const TranscriptionStatus: React.FC<TranscriptionStatusProps> = ({
           </Button>
         </>
       )}
+      
+      {/* Settings button - always visible */}
+      <div className="ml-2">
+        <TranscriptionSettings 
+          onWebhookUrlChange={onWebhookUrlChange}
+          defaultWebhookUrl={webhookUrl}
+        />
+      </div>
     </div>
   );
 };

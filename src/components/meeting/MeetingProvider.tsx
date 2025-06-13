@@ -23,6 +23,12 @@ interface MeetingContextValue {
     nextActions: string[];
   };
   generateSummary: () => string;
+  
+  // Client state from webhook
+  clientEmotion: string;
+  clientInterest: number;
+  callStage: string;
+  aiCoachingSuggestion: string;
 
   // Call manager
   isScreenSharing: boolean;
@@ -41,6 +47,10 @@ interface MeetingContextValue {
   handleConnectionTimeout: () => void;
   micStreamRef: React.MutableRefObject<MediaStream | null>;
   systemStreamRef: React.MutableRefObject<MediaStream | null>;
+  
+  // Webhook functionality
+  webhookUrl: string | null;
+  setWebhookUrl: (url: string | null) => void;
 
   // Auth
   user: any;
@@ -73,62 +83,38 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     updateMeeting,
     setActiveMeeting
   } = useMeetingState();
-
-  // Default placeholder insights
-  const [insights] = useState({
-    emotions: [
-      { emotion: "Interest", level: 75 },
-      { emotion: "Concern", level: 30 },
-      { emotion: "Enthusiasm", level: 45 },
-      { emotion: "Skepticism", level: 20 }
-    ],
-    painPoints: [
-      "Current solution is too complex to implement",
-      "Training the team takes too much time"
-    ],
-    objections: [
-      "Price seems higher than competitors",
-      "Concerned about implementation timeline"
-    ],
-    recommendations: [
-      "Demonstrate ROI calculation",
-      "Offer implementation support options"
-    ],
-    nextActions: [
-      "Schedule technical demo",
-      "Send case study on similar implementation"
-    ]
-  });
   
   const callManager = useCallManager();
 
   // Generate summary from insights
   const generateSummary = () => {
-    if (!insights || (!insights.painPoints?.length && !insights.recommendations?.length)) {
+    const currentInsights = callManager.insights;
+    
+    if (!currentInsights || (!currentInsights.painPoints?.length && !currentInsights.recommendations?.length)) {
       return "AI-generated summary will appear here after the call has some transcript data.";
     }
     
     let summary = "Meeting Summary:\n\n";
     
-    if (insights.painPoints?.length > 0) {
+    if (currentInsights.painPoints?.length > 0) {
       summary += "Key Pain Points:\n";
-      insights.painPoints.forEach((point: string, index: number) => {
+      currentInsights.painPoints.forEach((point: string, index: number) => {
         summary += `${index + 1}. ${point}\n`;
       });
       summary += "\n";
     }
     
-    if (insights.recommendations?.length > 0) {
+    if (currentInsights.recommendations?.length > 0) {
       summary += "Recommendations:\n";
-      insights.recommendations.forEach((rec: string, index: number) => {
+      currentInsights.recommendations.forEach((rec: string, index: number) => {
         summary += `${index + 1}. ${rec}\n`;
       });
       summary += "\n";
     }
     
-    if (insights.nextActions?.length > 0) {
+    if (currentInsights.nextActions?.length > 0) {
       summary += "Next Actions:\n";
-      insights.nextActions.forEach((action: string, index: number) => {
+      currentInsights.nextActions.forEach((action: string, index: number) => {
         summary += `${index + 1}. ${action}\n`;
       });
     }
@@ -148,8 +134,14 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     setActiveMeeting,
 
     // AI insights
-    insights,
+    insights: callManager.insights,
     generateSummary,
+    
+    // Client state from webhook
+    clientEmotion: callManager.clientEmotion,
+    clientInterest: callManager.clientInterest,
+    callStage: callManager.callStage,
+    aiCoachingSuggestion: callManager.aiCoachingSuggestion,
 
     // Call manager
     ...callManager,

@@ -22,7 +22,13 @@ const MeetingPageContent = () => {
     fullTranscript,
     isStreaming,
     reconnectTranscription,
-    insights
+    insights,
+    webhookUrl,
+    setWebhookUrl,
+    clientEmotion,
+    clientInterest,
+    callStage,
+    aiCoachingSuggestion
   } = useMeetingContext();
 
   const {
@@ -65,7 +71,12 @@ const MeetingPageContent = () => {
     isScreenSharing: !!webRTCStream,
     fullSentences: fullTranscript ? fullTranscript.split('\n').filter(Boolean) : [],
     liveTranscript,
-    insights
+    insights,
+    webhookUrl,
+    clientEmotion,
+    clientInterest,
+    callStage,
+    aiCoachingSuggestion
   });
 
   // Parse full sentences from the transcript
@@ -84,6 +95,12 @@ const MeetingPageContent = () => {
           transcriptionError={wsError}
           onReconnectTranscription={reconnectTranscription}
           stream={webRTCStream}
+          webhookUrl={webhookUrl}
+          onWebhookUrlChange={setWebhookUrl}
+          clientEmotion={clientEmotion}
+          clientInterest={clientInterest}
+          callStage={callStage}
+          aiCoachingSuggestion={aiCoachingSuggestion}
           className={`transition-all duration-300 ${
             isCallActive && !showControls 
               ? "h-screen" 

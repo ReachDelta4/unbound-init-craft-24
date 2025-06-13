@@ -136,7 +136,7 @@ To use the AI features, you need:
    - Or build it yourself from source
 
 2. **Phi-3 Model**: Place the model file in the `models/` directory
-   - The app is configured to use `Phi-3-mini-128k-instruct.Q4_K_M.gguf` by default
+   - The app is configured to use `Phi-3-mini-128k-instruct.Q2_K.gguf` by default
    - You can download quantized models from [HuggingFace](https://huggingface.co/models?search=phi-3)
 
 ### Using the AI Integration
