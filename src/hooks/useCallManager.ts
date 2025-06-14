@@ -3,6 +3,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useMixedAudioWebSocket } from '@/hooks/useMixedAudioWebSocket';
 import { useTranscriptionWebSocket } from '@/hooks/useTranscriptionWebSocket';
+import GeminiClient from '@/integrations/gemini/GeminiClient';
+import { ChatSession } from '@google/generative-ai';
 
 export const useCallManager = () => {
   const { toast } = useToast();
@@ -26,12 +28,65 @@ export const useCallManager = () => {
     setAutoReconnect
   } = useMixedAudioWebSocket();
 
+  // This ref will hold the persistent chat session for the duration of the call
+  const chatSessionRef = useRef<ChatSession | null>(null);
+
+  // This function will be called by the WebSocket hook when a sentence is ready
+  const handleFinalizedSentence = useCallback(async (sentence: string) => {
+    if (!chatSessionRef.current) {
+      console.error("CallManager: Chat session not initialized. Cannot process sentence.");
+      return;
+    }
+    if (!sentence || sentence.trim() === "") {
+      return; // Ignore empty sentences
+    }
+
+    // Normalize the sentence for comparison
+    const normalizedSentence = sentence.trim().toLowerCase();
+    
+    // Check if we've already processed this exact sentence
+    if (lastSentenceRef.current === normalizedSentence) {
+      console.log("CallManager: Skipping duplicate sentence:", sentence);
+      return;
+    }
+    
+    console.log("CallManager: Processing finalized sentence:", sentence);
+    try {
+      // Update last sentence reference before API call to prevent race conditions
+      lastSentenceRef.current = normalizedSentence;
+      
+      const jsonResponse = await GeminiClient.sendMessageInSession(chatSessionRef.current, sentence);
+      const parsedInsights = JSON.parse(jsonResponse);
+
+      if (parsedInsights.error) {
+        console.warn('CallManager: Gemini response was an error:', parsedInsights);
+        return;
+      }
+
+      console.log('CallManager: Successfully parsed insights from Gemini session.');
+      // Update all the relevant states
+      setInsights({
+        emotions: parsedInsights.emotions || [],
+        painPoints: parsedInsights.painPoints || [],
+        objections: parsedInsights.objections || [],
+        recommendations: parsedInsights.recommendations || [],
+        nextActions: parsedInsights.nextActions || [],
+      });
+      setClientEmotion(parsedInsights.clientEmotion || "Processing...");
+      setClientInterest(parsedInsights.clientInterest || 0);
+      setCallStage(parsedInsights.callStage || "Processing...");
+      setAiCoachingSuggestion(parsedInsights.aiCoachingSuggestion || "Waiting for next insight...");
+
+    } catch (error) {
+      console.error('CallManager: Failed to process sentence or parse response:', error);
+    }
+  }, []); // Empty dependency array as it uses refs and client singleton
+
   // Transcription and Gemini processing
   const {
-    lastGeminiResponse,
     connect: connectTranscription,
     disconnect: disconnectTranscription
-  } = useTranscriptionWebSocket();
+  } = useTranscriptionWebSocket(handleFinalizedSentence);
 
   // State for insights
   const [insights, setInsights] = useState({
@@ -75,13 +130,6 @@ export const useCallManager = () => {
 
   // Track the last processed sentence to avoid duplicates
   const [processedSentences, setProcessedSentences] = useState<Set<string>>(new Set());
-
-  // Log when we get a new Gemini response
-  useEffect(() => {
-    if (lastGeminiResponse) {
-      console.log('CallManager: New Gemini response for transcribed sentence:', lastGeminiResponse);
-    }
-  }, [lastGeminiResponse]);
 
   // Define extractAudioStreams before it's used in startCall
   const extractAudioStreams = useCallback((combinedStream: MediaStream) => {
@@ -153,6 +201,11 @@ export const useCallManager = () => {
     try {
       setConnectionTimedOut(false);
       setAutoReconnect(true);
+      
+      // Initialize the stateful chat session for this call
+      console.log('CallManager: Initializing stateful Gemini chat session...');
+      chatSessionRef.current = GeminiClient.startSalesAnalysisChat();
+      console.log('CallManager: Chat session initialized.');
       
       // Reset sentence tracking on new call
       lastSentenceRef.current = null;
@@ -304,12 +357,17 @@ export const useCallManager = () => {
         systemStreamRef.current = null;
       }
       
+      // Clear the chat session reference
+      chatSessionRef.current = null;
+      console.log('CallManager: Gemini chat session cleared.');
+      
       // Reset state
       lastSentenceRef.current = null;
       sentenceQueueRef.current = [];
       setProcessedSentences(new Set());
       setIsProcessingSentence(false);
       setConnectionTimedOut(false);
+      setAutoReconnect(false);
     } catch (error) {
       console.error('CallManager: Error ending call:', error);
     }
@@ -360,6 +418,5 @@ export const useCallManager = () => {
     clientInterest,
     callStage,
     aiCoachingSuggestion,
-    lastGeminiResponse
   };
 };

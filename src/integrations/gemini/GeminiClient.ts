@@ -1,25 +1,17 @@
-import { GoogleGenAI } from "@google/genai";
-
-// Define types for model settings
-interface ModelSettings {
-  model: string;
-  thinkingMode: "off" | "auto" | "on";
-  temperature: number;
-  topP: number;
-  topK: number;
-  maxOutputTokens: number;
-  stopSequences: string[];
-  safetySettings: {
-    harassment: string;
-    hateSpeech: string;
-    sexuallyExplicit: string;
-    dangerous: string;
-  };
-}
+import {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+  GenerativeModel,
+  GenerationConfig,
+  ChatSession,
+} from "@google/generative-ai";
+import { salesCallAnalysisSystemPrompt } from "./SystemPrompts";
+import { ModelSettings } from "@/types";
 
 // Default settings
 const defaultSettings: ModelSettings = {
-  model: "gemini-2.5-flash-preview-05-20",
+  model: "gemini-1.5-flash-latest",
   thinkingMode: "off",
   temperature: 0.7,
   topP: 0.95,
@@ -38,101 +30,140 @@ const defaultSettings: ModelSettings = {
  * Client for interacting with the Gemini API
  */
 class GeminiClient {
-  private ai: GoogleGenAI;
-  private settings: ModelSettings;
-  private isInitialized: boolean = false;
+  private static instance: GeminiClient;
+  private genAI: GoogleGenerativeAI;
+  private model: GenerativeModel;
+  private apiKey: string | null = null;
+  private settings: ModelSettings = {
+    model: "gemini-1.5-flash-latest",
+    temperature: 0.7,
+    thinkingMode: "off",
+    topP: 1,
+    topK: 1,
+    maxOutputTokens: 8192, // Increased for longer conversations
+    safetySettings: {
+      harassment: "BLOCK_NONE",
+      hateSpeech: "BLOCK_NONE",
+      sexuallyExplicit: "BLOCK_NONE",
+      dangerous: "BLOCK_NONE",
+    },
+    stopSequences: [],
+  };
+
+  private constructor() {
+    // In a Vite project, environment variables are exposed on `import.meta.env`
+    // and must be prefixed with VITE_ to be accessible in the client.
+    this.apiKey = import.meta.env.VITE_GEMINI_API_KEY || null;
+    console.log("GeminiClient: Constructor called");
+
+    if (!this.apiKey) {
+      console.error(
+        "GeminiClient: API key is not defined. Please set VITE_GEMINI_API_KEY environment variable."
+      );
+      // Fallback to a dummy object to avoid crashing the app
+      this.genAI = {} as GoogleGenerativeAI;
+      this.model = {} as GenerativeModel;
+      return;
+    }
+    
+    console.log(`GeminiClient: API key available: ${!!this.apiKey} Length: ${this.apiKey?.length}`);
+
+    try {
+      this.genAI = new GoogleGenerativeAI(this.apiKey);
+      console.log(`GeminiClient: Using model settings: ${this.settings.model} with temperature: ${this.settings.temperature}`);
+      
+      this.model = this.genAI.getGenerativeModel({
+        model: this.settings.model,
+        // System prompt is now passed when starting a chat session
+      });
+      console.log("GeminiClient: Initializing GoogleGenAI model");
+
+    } catch (error) {
+      console.error("GeminiClient: Error initializing GoogleGenAI:", error);
+      this.genAI = {} as GoogleGenerativeAI;
+      this.model = {} as GenerativeModel;
+    }
+  }
+
+  public static getInstance(): GeminiClient {
+    if (!this.instance) {
+      console.log("GeminiClient: Creating singleton instance");
+      this.instance = new GeminiClient();
+      console.log("GeminiClient: Singleton instance created successfully");
+    }
+    return this.instance;
+  }
+
+  /**
+   * Starts a new stateful chat session with the sales analysis system prompt.
+   * This session will maintain conversation history.
+   */
+  public startSalesAnalysisChat(): ChatSession {
+    if (!this.model) {
+      throw new Error("Gemini model is not initialized.");
+    }
+    console.log("GeminiClient: Starting stateful sales analysis chat session...");
+    return this.model.startChat({
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: salesCallAnalysisSystemPrompt }],
+      },
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: this.settings.temperature,
+      } as GenerationConfig,
+      history: [],
+    });
+  }
   
-  constructor() {
-    console.log('GeminiClient: Constructor called');
-    
-    // Get API key from environment variables
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 
-                  'AIzaSyDLzE1QRGxF1jLIFtvrUlFpua78VruMNjM'; // Fallback to hardcoded key as last resort
-    
-    console.log('GeminiClient: API key available:', !!apiKey, 'Length:', apiKey?.length || 0);
-    
-    if (!apiKey) {
-      console.error('GeminiClient: API key not found in environment variables');
-      throw new Error('Gemini API key not found. Please check your .env file and make sure VITE_GEMINI_API_KEY is set.');
-    }
-    
-    // Load settings from localStorage or use defaults
+  /**
+   * Sends a message within an existing stateful chat session.
+   */
+  public async sendMessageInSession(session: ChatSession, message: string): Promise<string> {
     try {
-      const savedSettings = localStorage.getItem("geminiModelSettings");
-      this.settings = savedSettings ? JSON.parse(savedSettings) : defaultSettings;
-      console.log('GeminiClient: Using model settings:', this.settings.model, 'with temperature:', this.settings.temperature);
+      console.log("GeminiClient: Sending message in existing session:", message.substring(0, 100));
+      const result = await session.sendMessage(message);
+      const response = result.response;
+      const text = response.text();
+      console.log("GeminiClient: Received stateful response from API.");
+      return text;
     } catch (error) {
-      console.warn('GeminiClient: Failed to load model settings from localStorage, using defaults:', error);
-      this.settings = defaultSettings;
-    }
-    
-    try {
-      console.log('GeminiClient: Initializing GoogleGenAI with API key');
-      this.ai = new GoogleGenAI({ apiKey });
-      this.isInitialized = true;
-      console.log('GeminiClient: Successfully initialized GoogleGenAI');
-    } catch (error) {
-      console.error('GeminiClient: Failed to initialize GoogleGenAI:', error);
-      this.isInitialized = false;
-      throw error;
+       console.error("GeminiClient: Error sending stateful message:", error);
+      return JSON.stringify({ 
+        error: "Failed to get response from Gemini API in session",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   }
   
   /**
-   * Send a message to Gemini and get a response
+   * Sends a one-off, stateless message. Used for things like the test chat window.
    */
-  async sendMessage(message: string): Promise<string> {
-    console.log('GeminiClient: sendMessage called with message:', message.substring(0, 50) + (message.length > 50 ? '...' : ''));
-    
-    if (!this.isInitialized) {
-      console.error('GeminiClient: Cannot send message - client is not initialized');
-      throw new Error('GeminiClient is not initialized');
+  public async sendStatelessMessage(message: string): Promise<string> {
+    if (!this.model || !this.model.startChat) {
+      console.error("GeminiClient: Model is not initialized, cannot send message.");
+      return JSON.stringify({ error: "Model not initialized" });
     }
     
     try {
-      // Convert safety settings to the format expected by the API
-      const safetySettings = Object.entries(this.settings.safetySettings).map(([category, threshold]) => ({
-        category: category.toUpperCase(),
-        threshold
-      }));
-      
-      // Create request configuration based on settings
-      const config = {
-        temperature: this.settings.temperature,
-        topP: this.settings.topP,
-        topK: this.settings.topK,
-        maxOutputTokens: this.settings.maxOutputTokens,
-        stopSequences: this.settings.stopSequences,
-        safetySettings
-      };
-      
-      // Add thinking mode if it's not "auto"
-      if (this.settings.thinkingMode !== "auto") {
-        Object.assign(config, {
-          thinking: this.settings.thinkingMode === "on"
-        });
-      }
-      
-      console.log('GeminiClient: Sending request to Gemini API with model:', this.settings.model);
-      
-      const response = await this.ai.models.generateContent({
-        model: this.settings.model,
-        contents: message,
-        generationConfig: config
+      console.log("GeminiClient: Starting stateless chat session...");
+      const chat = this.model.startChat({
+        history: [],
       });
+
+      console.log("GeminiClient: Sending stateless message to API:", message);
+      const result = await chat.sendMessage(message);
+      const response = result.response;
+      const text = response.text();
       
-      console.log('GeminiClient: Response received from Gemini API');
-      
-      if (!response.text) {
-        console.warn('GeminiClient: Empty response received from Gemini API');
-        return "No response received";
-      }
-      
-      console.log('GeminiClient: Response text:', response.text.substring(0, 50) + (response.text.length > 50 ? '...' : ''));
-      return response.text;
+      console.log("GeminiClient: Received stateless response from API");
+      return text;
     } catch (error) {
-      console.error('GeminiClient: Error sending message to Gemini:', error);
-      throw error;
+      console.error("GeminiClient: Error sending stateless message:", error);
+      return JSON.stringify({ 
+        error: "Failed to get response from Gemini API",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   }
   
@@ -156,21 +187,8 @@ class GeminiClient {
    * Check if the client is properly initialized
    */
   isReady(): boolean {
-    return this.isInitialized;
+    return !!this.model && !!this.genAI;
   }
 }
 
-// Create a singleton instance
-const geminiClientInstance = (() => {
-  console.log('GeminiClient: Creating singleton instance');
-  try {
-    const instance = new GeminiClient();
-    console.log('GeminiClient: Singleton instance created successfully');
-    return instance;
-  } catch (error) {
-    console.error('GeminiClient: Failed to create singleton instance:', error);
-    return null;
-  }
-})();
-
-export default geminiClientInstance; 
+export default GeminiClient.getInstance(); 

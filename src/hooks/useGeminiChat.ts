@@ -1,26 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
-import GeminiClient from '@/integrations/gemini/GeminiClient';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import geminiClientInstance from '../integrations/gemini/GeminiClient';
+import { ModelSettings } from "@/types";
 
 export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-// Define types for model settings
-export interface ModelSettings {
-  model: string;
-  thinkingMode: "off" | "auto" | "on";
-  temperature: number;
-  topP: number;
-  topK: number;
-  maxOutputTokens: number;
-  stopSequences: string[];
-  safetySettings: {
-    harassment: string;
-    hateSpeech: string;
-    sexuallyExplicit: string;
-    dangerous: string;
-  };
+  role: 'user' | 'assistant' | 'model';
+  parts: { text: string }[];
 }
 
 export function useGeminiChat() {
@@ -33,12 +17,12 @@ export function useGeminiChat() {
   // Check if API key is available and load settings
   useEffect(() => {
     // Check if the client is available
-    if (GeminiClient) {
+    if (geminiClientInstance) {
       setIsClientAvailable(true);
       
       // Get current settings from the client
       try {
-        const settings = GeminiClient.getSettings();
+        const settings = geminiClientInstance.getSettings();
         setModelSettings(settings);
       } catch (error) {
         console.error('Failed to get model settings:', error);
@@ -57,18 +41,18 @@ export function useGeminiChat() {
       setError(null);
       
       // Add user message to the chat
-      const userMessage: ChatMessage = { role: 'user', content };
+      const userMessage: ChatMessage = { role: 'user', parts: [{ text: content }] };
       setMessages(prev => [...prev, userMessage]);
       
       // Get response from Gemini
-      if (!GeminiClient) {
+      if (!geminiClientInstance) {
         throw new Error('Gemini client is not available');
       }
       
-      const response = await GeminiClient.sendMessage(content);
+      const response = await geminiClientInstance.sendStatelessMessage(content);
       
       // Add assistant message to the chat
-      const assistantMessage: ChatMessage = { role: 'assistant', content: response };
+      const assistantMessage: ChatMessage = { role: 'assistant', parts: [{ text: response }] };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
@@ -84,9 +68,9 @@ export function useGeminiChat() {
   }, []);
 
   const updateModelSettings = useCallback((newSettings: ModelSettings) => {
-    if (GeminiClient) {
+    if (geminiClientInstance) {
       try {
-        GeminiClient.updateSettings(newSettings);
+        geminiClientInstance.updateSettings(newSettings);
         setModelSettings(newSettings);
       } catch (error) {
         console.error('Failed to update model settings:', error);

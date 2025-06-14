@@ -1,5 +1,6 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import { useCallManager } from '@/hooks/useCallManager';
+import { useSentenceProcessor } from '@/hooks/useSentenceProcessor';
 import { TranscriptionWSStatus } from '@/hooks/useTranscriptionWebSocket';
 
 interface MeetingContextType {
@@ -42,7 +43,7 @@ export const useMeeting = (): MeetingContextType => {
   return context;
 };
 
-export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+const MeetingProviderComponent: React.FC<{ children: ReactNode }> = ({ children }) => {
   const {
     isCallActive,
     isScreenSharing,
@@ -61,7 +62,8 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
   } = useCallManager();
 
   // Create the context value object with all properties explicitly listed
-  const contextValue: MeetingContextType = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
     isCallActive,
     isScreenSharing,
     startCall,
@@ -76,11 +78,29 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
     callStage,
     aiCoachingSuggestion,
     lastGeminiResponse,
-  };
+  }), [
+    isCallActive,
+    isScreenSharing,
+    startCall,
+    endCall,
+    toggleScreenShare,
+    liveTranscript,
+    fullTranscript,
+    transcriptionStatus,
+    insights,
+    clientEmotion,
+    clientInterest,
+    callStage,
+    aiCoachingSuggestion,
+    lastGeminiResponse,
+  ]);
 
   return (
     <MeetingContext.Provider value={contextValue}>
       {children}
     </MeetingContext.Provider>
   );
-}; 
+};
+
+// Export a memoized version of the provider to prevent unnecessary re-renders
+export const MeetingProvider = React.memo(MeetingProviderComponent); 

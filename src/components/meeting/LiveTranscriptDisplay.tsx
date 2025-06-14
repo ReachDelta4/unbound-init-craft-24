@@ -91,4 +91,4 @@ const LiveTranscriptDisplay = ({
   );
 };
 
-export default LiveTranscriptDisplay;
+export default React.memo(LiveTranscriptDisplay);

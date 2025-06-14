@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import GeminiClient from '@/integrations/gemini/GeminiClient';
 
 interface UseSentenceProcessorResult {
@@ -20,6 +20,9 @@ export function useSentenceProcessor(): UseSentenceProcessorResult {
   const [lastProcessedSentence, setLastProcessedSentence] = useState<string | null>(null);
   const [lastResponse, setLastResponse] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Store processed sentences to avoid duplicates
+  const processedSentencesRef = useRef<Set<string>>(new Set());
 
   // Check if GeminiClient is properly initialized when the hook mounts
   useEffect(() => {
@@ -28,7 +31,44 @@ export function useSentenceProcessor(): UseSentenceProcessorResult {
       console.error('SentenceProcessor: GeminiClient is not initialized properly');
       setError('GeminiClient is not initialized properly');
     }
+    
+    // Clear processed sentences on unmount
+    return () => {
+      processedSentencesRef.current.clear();
+    };
   }, []);
+  
+  // Normalize a sentence for comparison (trim and lowercase)
+  const normalizeSentence = useCallback((sentence: string): string => {
+    return sentence.trim().toLowerCase();
+  }, []);
+  
+  // Check if a sentence is similar to one we've already processed
+  const isSimilarToProcessed = useCallback((sentence: string): boolean => {
+    const normalized = normalizeSentence(sentence);
+    
+    // Exact match check
+    if (processedSentencesRef.current.has(normalized)) {
+      console.log('SentenceProcessor: Exact duplicate detected:', sentence);
+      return true;
+    }
+    
+    // Check for high similarity with any processed sentence
+    for (const processed of processedSentencesRef.current) {
+      // If one is a substring of the other with high overlap
+      if (processed.length > 5 && (
+          normalized.includes(processed) || 
+          processed.includes(normalized))) {
+        console.log('SentenceProcessor: Similar sentence already processed:', {
+          new: sentence,
+          existing: processed
+        });
+        return true;
+      }
+    }
+    
+    return false;
+  }, [normalizeSentence]);
 
   const processSentence = useCallback(async (sentence: string) => {
     console.log('SentenceProcessor: processSentence called with:', sentence);
@@ -44,10 +84,27 @@ export function useSentenceProcessor(): UseSentenceProcessorResult {
       return;
     }
     
+    // Check for duplicates or similar sentences
+    if (isSimilarToProcessed(sentence)) {
+      console.log('SentenceProcessor: Skipping duplicate/similar sentence:', sentence);
+      return;
+    }
+    
     try {
       setIsProcessing(true);
       setError(null);
       setLastProcessedSentence(sentence);
+      
+      // Add to processed set before API call to prevent race conditions
+      const normalized = normalizeSentence(sentence);
+      processedSentencesRef.current.add(normalized);
+      
+      // Limit the size of our processed set to avoid memory leaks
+      if (processedSentencesRef.current.size > 100) {
+        // Remove the oldest entries (convert to array, slice, then back to Set)
+        const array = Array.from(processedSentencesRef.current);
+        processedSentencesRef.current = new Set(array.slice(-50));
+      }
       
       console.log('SentenceProcessor: Processing sentence with Gemini:', sentence);
       
@@ -70,7 +127,7 @@ export function useSentenceProcessor(): UseSentenceProcessorResult {
       setIsProcessing(false);
       console.log('SentenceProcessor: Processing completed');
     }
-  }, []);
+  }, [isSimilarToProcessed, normalizeSentence]);
 
   return {
     processSentence,

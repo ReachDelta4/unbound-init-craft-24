@@ -241,4 +241,5 @@ const MeetingWorkspace = ({
   );
 };
 
-export default MeetingWorkspace;
+// Export a memoized version of the component to prevent unnecessary re-renders
+export default React.memo(MeetingWorkspace);

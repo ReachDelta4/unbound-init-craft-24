@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSentenceProcessor } from './useSentenceProcessor';
+import { useToast } from "@/components/ui/use-toast";
 
 // Connection status types
 export type TranscriptionWSStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -31,66 +31,46 @@ interface UseTranscriptionWebSocketResult {
  *   ws.disconnect();
  *   // Use ws.status, ws.realtimeText, ws.fullSentences, ws.error in UI
  */
-export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
+export function useTranscriptionWebSocket(
+  onFinalizedSentence: (sentence: string) => void
+): UseTranscriptionWebSocketResult {
+  const { toast } = useToast();
+  
   const [status, setStatus] = useState<TranscriptionWSStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
   const [realtimeText, setRealtimeText] = useState('');
   const [fullSentences, setFullSentences] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
+
+  // Ref to hold the real-time transcript being built between finalized sentences
+  const interimTranscriptRef = useRef('');
+
+  // Ref for the debounce timer
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingSentenceRef = useRef<string | null>(null);
   
-  // Initialize the sentence processor
-  const { 
-    processSentence, 
-    lastResponse: lastGeminiResponse,
-    error: geminiError,
-    isProcessing
-  } = useSentenceProcessor();
-
-  // Keep track of the last sentence we processed to avoid duplicates when using realtime messages
-  const lastProcessedSentenceRef = useRef<string | null>(null);
-
-  // Log when the component initializes
-  useEffect(() => {
-    console.log('TranscriptionWebSocket: Initializing with SentenceProcessor available');
+  // Ref to store normalized sentences that have been processed to prevent duplicates
+  const processedSentencesRef = useRef<Set<string>>(new Set());
+  
+  const normalizeSentence = useCallback((sentence: string): string => {
+    // Lowercase, trim, and remove all punctuation for better matching.
+    return sentence.trim().toLowerCase().replace(/[.,!?-]/g, '');
   }, []);
 
-  // If there's an error with Gemini processing, add it to our errors
-  useEffect(() => {
-    if (geminiError) {
-      console.warn('TranscriptionWebSocket: Gemini processing error:', geminiError);
-      // Optionally set the error state if you want to display it in the UI
-      // setError(prev => prev ? `${prev}; Gemini: ${geminiError}` : `Gemini: ${geminiError}`);
-    }
-  }, [geminiError]);
-
-  // Log when we get a Gemini response
-  useEffect(() => {
-    if (lastGeminiResponse) {
-      console.log('TranscriptionWebSocket: Received Gemini response:', lastGeminiResponse);
-    }
-  }, [lastGeminiResponse]);
-
-  // Wraps the processSentence call to avoid duplicate processing
   const triggerProcessing = useCallback((sentence: string) => {
-    // Basic check to prevent re-processing identical text
-    if (sentence === lastProcessedSentenceRef.current) {
-      console.log('TranscriptionWebSocket: Skipping identical sentence:', sentence);
+    const normalized = normalizeSentence(sentence);
+    // Prevent processing of empty or already processed sentences.
+    if (!normalized || processedSentencesRef.current.has(normalized)) {
+      if (normalized) {
+        console.log('TranscriptionWebSocket: Skipping already processed sentence:', sentence);
+      }
       return;
     }
+    
     console.log('TranscriptionWebSocket: Triggering processing for:', sentence);
-    processSentence(sentence)
-      .then(() => {
-        console.log('TranscriptionWebSocket: Sentence processing initiated successfully for:', sentence);
-        lastProcessedSentenceRef.current = sentence;
-      })
-      .catch(err => console.error('TranscriptionWebSocket: Error initiating sentence processing:', err));
-  }, [processSentence]);
-
-  // Compute full transcript from sentences
-  const fullTranscript = fullSentences.join('\n');
+    processedSentencesRef.current.add(normalized);
+    onFinalizedSentence(sentence);
+  }, [onFinalizedSentence, normalizeSentence]);
 
   // Open WebSocket connection
   const connect = useCallback(() => {
@@ -99,12 +79,12 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
     }
     setStatus('connecting');
     setError(null);
-    reconnectRef.current = true;
     try {
       console.log('TranscriptionWebSocket: Attempting to connect to WebSocket server at ws://localhost:8012');
       const ws = new WebSocket('ws://localhost:8012');
       ws.onopen = () => {
         setStatus('connected');
+        reconnectAttemptsRef.current = 0;
         console.log('TranscriptionWebSocket: Connected successfully');
       };
       ws.onerror = (e) => {
@@ -120,85 +100,57 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
         try {
           const msg: BackendMessage = JSON.parse(event.data);
           
-          if (msg.type === 'realtime' && msg.text) {
-            // Update UI immediately with each partial transcription
-            setRealtimeText(msg.text);
-            console.log('TranscriptionWebSocket: Received realtime text', msg.text);
+          if (msg.type === 'realtime' && typeof msg.text === 'string') {
+            // Append new text to our interim buffer.
+            interimTranscriptRef.current += msg.text;
+            setRealtimeText(interimTranscriptRef.current);
 
-            // Detect sentence completion when backend doesn't send explicit fullSentence messages
-            const trimmed = msg.text.trim();
-            const sentenceComplete = /[.!?]$/; // ends with . ! or ?
-
-            if (sentenceComplete.test(trimmed)) {
-              // Avoid processing the same sentence multiple times
-              if (trimmed !== lastProcessedSentenceRef.current) {
-                console.log('TranscriptionWebSocket: Detected potential sentence (realtime):', trimmed);
-                
-                // Clear any existing timer to reset the debounce window
-                if (debounceTimerRef.current) {
-                  clearTimeout(debounceTimerRef.current);
-                }
-
-                // Add the potentially temporary sentence to the list for UI responsiveness
-                setFullSentences(prev => {
-                  // If a similar sentence exists, replace it, otherwise add it.
-                  const existingIndex = prev.findIndex(s => trimmed.startsWith(s.slice(0, -1)));
-                  if (existingIndex > -1) {
-                    const newSentences = [...prev];
-                    newSentences[existingIndex] = trimmed;
-                    return newSentences;
-                  }
-                  return [...prev, trimmed];
-                });
-                
-                pendingSentenceRef.current = trimmed;
-                
-                // Set a timer to process this sentence if no fullSentence arrives
-                debounceTimerRef.current = setTimeout(() => {
-                  console.log('TranscriptionWebSocket: Debounce timer fired. Processing realtime sentence.');
-                  triggerProcessing(trimmed);
-                  pendingSentenceRef.current = null; // Clear pending sentence
-                }, 750); // 750ms debounce window
-              }
-            }
-          } else if (msg.type === 'fullSentence' && msg.text) {
-            // A definitive sentence has arrived.
-            console.log('TranscriptionWebSocket: Received full sentence:', msg.text);
-
-            // Clear any pending realtime timer, as this is the "golden" transcript
+            // If a debounce timer is already running, clear it.
             if (debounceTimerRef.current) {
               clearTimeout(debounceTimerRef.current);
-              console.log('TranscriptionWebSocket: Debounce timer cleared by fullSentence.');
             }
-
-            // If a similar sentence was pending, we can ignore it
-            pendingSentenceRef.current = null;
             
-            // Process the definitive sentence
+            // Set a new timer. If the user pauses, this will fire.
+            debounceTimerRef.current = setTimeout(() => {
+              const sentenceToProcess = interimTranscriptRef.current.trim();
+              if (sentenceToProcess) {
+                console.log('TranscriptionWebSocket: Debounce timer fired. Processing interim sentence.');
+                triggerProcessing(sentenceToProcess);
+                // Clear the buffer after processing.
+                interimTranscriptRef.current = '';
+              }
+            }, 1200); // Wait 1.2s for a pause before processing.
+
+          } else if (msg.type === 'fullSentence' && msg.text) {
+            console.log('TranscriptionWebSocket: Received full sentence:', msg.text);
+
+            // The definitive sentence has arrived. Cancel any pending interim processing.
+            if (debounceTimerRef.current) {
+              console.log('TranscriptionWebSocket: Debounce timer cleared by fullSentence.');
+              clearTimeout(debounceTimerRef.current);
+              debounceTimerRef.current = null;
+            }
+            
+            // Clear the interim buffer and UI display.
+            interimTranscriptRef.current = '';
+            setRealtimeText('');
+
+            // Process the definitive sentence.
             triggerProcessing(msg.text);
             
-            // Update the sentence list, replacing any similar realtime sentence
-            setFullSentences(prev => {
-              const existingIndex = prev.findIndex(s => msg.text.startsWith(s.slice(0, -1)));
-              if (existingIndex > -1) {
-                const newSentences = [...prev];
-                newSentences[existingIndex] = msg.text;
-                console.log('TranscriptionWebSocket: Updated fullSentences (replaced), count:', newSentences.length);
-                return newSentences;
-              }
-              const newSentences = [...prev, msg.text];
-              console.log('TranscriptionWebSocket: Updated fullSentences (added), count:', newSentences.length);
-              return newSentences;
-            });
+            setFullSentences(prev => [...prev, msg.text || '']);
 
-            // Update last processed reference
-            lastProcessedSentenceRef.current = msg.text;
+          } else if (msg.type === 'error') {
+            console.error('TranscriptionWebSocket: Received error:', msg.message);
+            setError(msg.message || 'Unknown error from WebSocket');
+            setStatus('error');
           } else {
-            console.log('TranscriptionWebSocket: Received unknown message type:', msg.type);
+            // console.log("TranscriptionWebSocket: Received unknown message type:", msg.type);
           }
         } catch (err) {
-          // Ignore malformed messages
-          console.error('TranscriptionWebSocket: Error parsing message:', err);
+          console.error("TranscriptionWebSocket: Error parsing message", err);
+          setError("Failed to parse message from server.");
+          setStatus('error');
         }
       };
       wsRef.current = ws;
@@ -207,11 +159,10 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
       setError('Failed to connect WebSocket');
       console.error('TranscriptionWebSocket: Failed to connect:', err);
     }
-  }, [processSentence]);
+  }, [triggerProcessing, toast]);
 
   // Close WebSocket connection
   const disconnect = useCallback(() => {
-    reconnectRef.current = false;
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -221,12 +172,14 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
     }
     setStatus('disconnected');
     console.log('TranscriptionWebSocket: Disconnected');
+    
+    // Clear processed sentences on disconnect
+    processedSentencesRef.current.clear();
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      reconnectRef.current = false;
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -234,8 +187,13 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      // Clear processed sentences on unmount
+      processedSentencesRef.current.clear();
     };
   }, []);
+
+  // Compute full transcript from sentences
+  const fullTranscript = fullSentences.join('\n');
 
   return {
     status,
@@ -245,6 +203,6 @@ export function useTranscriptionWebSocket(): UseTranscriptionWebSocketResult {
     fullTranscript,
     connect,
     disconnect,
-    lastGeminiResponse,
+    lastGeminiResponse: null,
   };
 }
