@@ -1,5 +1,5 @@
-
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { isElectron, isScreenSharingSupported } from '@/lib/browser-detection';
 
 interface WebRTCState {
   isScreenSharing: boolean;
@@ -60,6 +60,21 @@ export const useWebRTC = () => {
   }, []);
 
   const startScreenShare = useCallback(async (): Promise<MediaStream> => {
+    // First, check if screen sharing is supported
+    if (!isScreenSharingSupported()) {
+      const errorMsg = isElectron() 
+        ? 'Screen sharing is not working in this Electron build. Please check permissions.'
+        : 'Screen sharing is not supported in this browser.';
+      
+      setState(prev => ({ 
+        ...prev, 
+        error: errorMsg,
+        isScreenSharing: false
+      }));
+      
+      throw new Error(errorMsg);
+    }
+    
     // Always stop any existing screen share before starting a new one
     stopScreenShareRef.current();
     
@@ -75,19 +90,143 @@ export const useWebRTC = () => {
       
       console.log("useWebRTC: Requesting display media...");
       
-      // Request screen sharing with enhanced options
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 30, max: 30 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+      let screenStream: MediaStream | null = null;
+
+      try {
+        // Try the standard API first
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: 1920, max: 1920 },
+            height: { ideal: 1080, max: 1080 },
+            frameRate: { ideal: 30, max: 30 }
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        
+        // Also try to capture microphone audio and combine streams
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            },
+            video: false
+          });
+          
+          // Create a new stream that combines both screen and mic
+          const combinedStream = new MediaStream();
+          
+          // Add all tracks from screen stream
+          screenStream.getTracks().forEach(track => {
+            combinedStream.addTrack(track);
+          });
+          
+          // Add mic audio track
+          micStream.getAudioTracks().forEach(track => {
+            combinedStream.addTrack(track);
+          });
+          
+          // Use the combined stream instead
+          screenStream = combinedStream;
+          
+          console.log('useWebRTC: Combined screen and microphone streams successfully');
+        } catch (micError) {
+          console.warn('useWebRTC: Failed to get microphone access, continuing with just screen audio:', micError);
+          // Continue with just the screen stream
         }
-      });
+      } catch (stdErr) {
+        console.warn('useWebRTC: Standard getDisplayMedia failed, attempting Electron fallback...', stdErr);
+
+        if (isElectron() && window.electronAPI && typeof window.electronAPI.getScreenSources === 'function') {
+          try {
+            const response = await window.electronAPI.getScreenSources({
+              types: ['screen', 'window'],
+              thumbnailSize: { width: 150, height: 150 },
+              fetchWindowIcons: true,
+            });
+            
+            console.log('useWebRTC: Electron getScreenSources response:', response);
+            
+            if (!response.success) {
+              throw new Error(response.error || 'Failed to get screen sources from Electron');
+            }
+            
+            const sources = response.sources;
+            
+            if (sources && sources.length > 0) {
+              const src = sources.find((s: any) => s.name.toLowerCase().includes('screen')) || sources[0];
+              // @ts-ignore
+              screenStream = await (navigator.mediaDevices as any).getUserMedia({
+                audio: {
+                  mandatory: {
+                    chromeMediaSource: 'desktop'
+                  },
+                  optional: [
+                    { echoCancellation: true },
+                    { noiseSuppression: true },
+                    { autoGainControl: true }
+                  ]
+                },
+                video: {
+                  mandatory: {
+                    chromeMediaSource: 'desktop',
+                    chromeMediaSourceId: src.id,
+                    minWidth: 1280,
+                    maxWidth: 1920,
+                    minHeight: 720,
+                    maxHeight: 1080,
+                  },
+                },
+              });
+              
+              // Also try to capture microphone audio and combine streams
+              try {
+                const micStream = await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                  },
+                  video: false
+                });
+                
+                // Create a new stream that combines both screen and mic
+                const combinedStream = new MediaStream();
+                
+                // Add all tracks from screen stream
+                screenStream.getTracks().forEach(track => {
+                  combinedStream.addTrack(track);
+                });
+                
+                // Add mic audio track
+                micStream.getAudioTracks().forEach(track => {
+                  combinedStream.addTrack(track);
+                });
+                
+                // Use the combined stream instead
+                screenStream = combinedStream;
+                
+                console.log('useWebRTC: Combined Electron screen and microphone streams successfully');
+              } catch (micError) {
+                console.warn('useWebRTC: Failed to get microphone access in Electron, continuing with just screen audio:', micError);
+                // Continue with just the screen stream
+              }
+            } else {
+              throw new Error('No screen sources available in Electron');
+            }
+          } catch (electronErr) {
+            console.error('useWebRTC: Electron fallback failed', electronErr);
+            throw electronErr;
+          }
+        } else {
+          throw stdErr;
+        }
+      }
       
       // Validate the stream
       if (!screenStream) {
@@ -168,7 +307,9 @@ export const useWebRTC = () => {
         } else if (error.name === 'NotFoundError') {
           errorMessage = 'No screen sharing source available.';
         } else if (error.name === 'NotSupportedError') {
-          errorMessage = 'Screen sharing is not supported in this browser.';
+          errorMessage = isElectron() 
+            ? 'Screen sharing is not working in this Electron build. Please check permissions.'
+            : 'Screen sharing is not supported in this browser.';
         } else {
           errorMessage = error.message;
         }
@@ -190,7 +331,9 @@ export const useWebRTC = () => {
     hasStream: !!state.stream,
     streamId: state.stream?.id,
     error: state.error,
-    streamActive: state.stream?.active
+    streamActive: state.stream?.active,
+    isElectron: isElectron(),
+    screenSharingSupported: isScreenSharingSupported()
   });
 
   return {

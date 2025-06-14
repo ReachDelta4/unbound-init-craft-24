@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,8 +6,6 @@ import MeetingWorkspace from "@/components/meeting/MeetingWorkspace";
 import CallTimer from "@/components/meeting/CallTimer";
 import MeetingControls from "@/components/MeetingControls";
 import MeetingDialogsManager from "@/components/meeting/MeetingDialogsManager";
-import Phi3Insights from "@/components/meeting/Phi3Insights";
-import { Phi3Provider } from "@/contexts/Phi3Context";
 import { MeetingProvider, useMeetingContext } from "@/components/meeting/MeetingProvider";
 import { useMeetingPageLogic } from "@/hooks/useMeetingPageLogic";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
@@ -25,7 +22,12 @@ const MeetingPageContent = () => {
     fullTranscript,
     isStreaming,
     reconnectTranscription,
-    insights
+    insights,
+    clientEmotion,
+    clientInterest,
+    callStage,
+    aiCoachingSuggestion,
+    lastGeminiResponse
   } = useMeetingContext();
 
   const {
@@ -68,7 +70,12 @@ const MeetingPageContent = () => {
     isScreenSharing: !!webRTCStream,
     fullSentences: fullTranscript ? fullTranscript.split('\n').filter(Boolean) : [],
     liveTranscript,
-    insights
+    insights,
+    clientEmotion,
+    clientInterest,
+    callStage,
+    aiCoachingSuggestion,
+    lastGeminiResponse
   });
 
   // Parse full sentences from the transcript
@@ -77,16 +84,9 @@ const MeetingPageContent = () => {
   return (
     <MainLayout>
       <div className="relative">
-        {/* Hidden Phi3Insights component to process transcript */}
-        <Phi3Insights
-          liveText={liveTranscript}
-          transcriptHistory={fullSentences}
-          className="hidden"
-        />
-        
         <MeetingWorkspace
           isCallActive={isCallActive}
-          transcript={fullTranscript || ""}
+          transcript={formattedTranscript}
           insights={insights}
           realtimeText={liveTranscript}
           fullSentences={fullSentences}
@@ -94,13 +94,17 @@ const MeetingPageContent = () => {
           transcriptionError={wsError}
           onReconnectTranscription={reconnectTranscription}
           stream={webRTCStream}
+          clientEmotion={clientEmotion}
+          clientInterest={clientInterest}
+          callStage={callStage}
+          aiCoachingSuggestion={aiCoachingSuggestion}
+          lastGeminiResponse={lastGeminiResponse}
           className={`transition-all duration-300 ${
             isCallActive && !showControls 
               ? "h-screen" 
               : "h-[calc(100vh-56px)]"
           }`}
         />
-        
         
         <CallTimer
           isActive={isCallActive}
@@ -125,13 +129,12 @@ const MeetingPageContent = () => {
         >
           <MeetingControls
             isCallActive={isCallActive}
+            isCreatingMeeting={isCreatingMeeting}
+            isSavingMeeting={isSavingMeeting}
+            onStartCall={handleStartCall}
+            onEndCall={handleEndCall}
             callType={callType}
             callDuration={uiCallDuration}
-            onCallTypeChange={handleStartCall}
-            onStartCall={() => handleStartCall(callType || "video")}
-            onEndCall={handleEndCall}
-            isLoading={isCreatingMeeting}
-            isSaving={isSavingMeeting}
           />
           <div className="text-xs text-center text-muted-foreground mt-1">
             {wsStatus === 'connected' && isStreaming ? (
@@ -171,11 +174,9 @@ const MeetingPageContent = () => {
 
 const MeetingPage = () => {
   return (
-    <Phi3Provider autoInitialize={true}>
-      <MeetingProvider>
-        <MeetingPageContent />
-      </MeetingProvider>
-    </Phi3Provider>
+    <MeetingProvider>
+      <MeetingPageContent />
+    </MeetingProvider>
   );
 };
 

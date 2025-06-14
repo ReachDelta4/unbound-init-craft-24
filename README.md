@@ -3,6 +3,88 @@
 ## Project Overview
 Meeting Mojo is a sophisticated web application designed to revolutionize virtual meetings with real-time transcription, AI-powered insights, and comprehensive note-taking capabilities. The application captures both microphone and system audio, processes it through WebSocket connections to a transcription service, and provides a comprehensive meeting workspace with multiple interactive panels.
 
+## Electron App
+
+Meeting Mojo is now available as an Electron desktop application, providing native desktop integration while maintaining all the features of the web version.
+
+### Running the Electron App
+
+#### Development Mode
+To run the app in development mode:
+```bash
+npm run electron:dev
+```
+This will start both the Vite development server and the Electron app, with hot reloading enabled.
+
+#### Production Build
+To build the production version:
+```bash
+npm run electron:build
+```
+This will create distributable packages in the `release` folder.
+
+#### Preview Production Build
+To preview the production build without packaging:
+```bash
+npm run electron:preview
+```
+
+### Desktop Features
+The Electron version offers several advantages:
+- Native file system access for importing and exporting notes
+- Better audio capture capabilities
+- Runs as a standalone application without browser limitations
+- Improved performance for audio processing
+- Integrated n8n workflow automation for AI processing
+
+## n8n Integration
+
+Meeting Mojo integrates n8n as an orchestration layer between the application and AI models like Ollama. This provides several benefits:
+
+- **Flexible AI Integration**: Easily connect to different AI models without changing application code
+- **Visual Workflow Creation**: Design AI processing workflows visually in the n8n UI
+- **Extensibility**: Add pre/post-processing steps, error handling, and complex logic
+- **Monitoring**: Track AI requests and responses through n8n's interface
+
+### How It Works
+
+1. The Electron app automatically starts n8n when launched
+2. n8n runs locally on port 5678 (http://localhost:5678)
+3. The application communicates with n8n via webhook endpoints
+4. n8n orchestrates requests to AI models and returns processed results
+
+### Using n8n with Ollama
+
+The integration follows this pattern:
+
+```
+Electron App → n8n (orchestrator) → Ollama (AI model) → Back to your app
+```
+
+To set up a workflow:
+
+1. Open the n8n UI at http://localhost:5678
+2. Create a new workflow with a webhook trigger
+3. Add an HTTP Request node to call Ollama's API
+4. Configure parameters and processing logic
+5. Activate the workflow and use the webhook URL in your application
+
+### API Integration
+
+The application provides utilities to interact with n8n:
+
+```typescript
+// Check n8n status
+const { isRunning, n8nUrl } = useN8n();
+
+// Execute a workflow
+const result = await executeWorkflow('your-workflow-id', {
+  text: 'Process this text with AI',
+  model: 'llama3',
+  options: { temperature: 0.7 }
+});
+```
+
 ## Core Architecture
 
 ### Frontend Framework
@@ -28,6 +110,53 @@ Meeting Mojo is a sophisticated web application designed to revolutionize virtua
 - **Supabase**: For authentication and database
 - **WebSockets**: For real-time audio streaming and transcription
 - **WebRTC**: For screen sharing and audio capture
+
+## AI Integration
+
+### Automatic Services Startup
+The application automatically starts the following services when launched:
+
+1. **n8n Workflow Automation**
+   - Runs locally on port 5678 (http://localhost:5678)
+   - Used for orchestrating AI workflows and data processing
+   - The n8n process is managed by the Electron app and automatically terminates when the app is closed
+
+2. **llama.cpp Server for Phi-3**
+   - Runs locally on port 8080 (http://127.0.0.1:8080)
+   - Provides the API for interacting with the Phi-3 language model
+   - Automatically loads the Phi-3 model specified in the configuration
+   - The server process is managed by the Electron app and automatically terminates when the app is closed
+
+### Setup Requirements
+
+To use the AI features, you need:
+
+1. **llama-server.exe**: Place this in the `resources/llama-cpp/` directory
+   - Download from the [llama.cpp GitHub repository](https://github.com/ggerganov/llama.cpp/releases)
+   - Or build it yourself from source
+
+2. **Phi-3 Model**: Place the model file in the `models/` directory
+   - The app is configured to use `Phi-3-mini-128k-instruct.Q2_K.gguf` by default
+   - You can download quantized models from [HuggingFace](https://huggingface.co/models?search=phi-3)
+
+### Using the AI Integration
+
+The application provides utilities to interact with both services:
+
+```typescript
+// Check n8n status
+const { isRunning: n8nRunning, url: n8nUrl } = await getN8nStatus();
+
+// Check llama.cpp status
+const phi3Client = new Phi3Client({});
+const { running: llamaRunning } = await phi3Client.getStatus();
+
+// Generate text with Phi-3
+const response = await phi3Client.generateText("Summarize the following meeting transcript:", {
+  temperature: 0.7,
+  maxTokens: 500
+});
+```
 
 ## Database Schema
 

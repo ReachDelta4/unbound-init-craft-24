@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -8,7 +7,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserCircle, Briefcase, File, Calendar, ArrowLeft } from "lucide-react";
+import { UserCircle, Briefcase, File, Calendar, ArrowLeft, Settings } from "lucide-react";
 import { 
   Sidebar, 
   SidebarContent, 
@@ -24,9 +23,10 @@ import PersonalTab from "@/components/profile/PersonalTab";
 import BusinessTab from "@/components/profile/BusinessTab";
 import DocumentsTab from "@/components/profile/DocumentsTab";
 import MeetingHistoryTab from "@/components/profile/MeetingHistoryTab";
+import ModelSettingsTab from "@/components/profile/ModelSettingsTab";
 import { Button } from "@/components/ui/button";
 
-type TabType = "personal" | "business" | "documents" | "meetings";
+type TabType = "personal" | "business" | "documents" | "meetings" | "model-settings";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -96,6 +96,16 @@ const Profile = () => {
                   <span>Meeting History</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  isActive={activeTab === "model-settings"} 
+                  onClick={() => setActiveTab("model-settings")}
+                  tooltip="AI Model Settings"
+                >
+                  <Settings />
+                  <span>Model Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter>
@@ -125,6 +135,7 @@ const Profile = () => {
                 {activeTab === "business" && "Business Details"}
                 {activeTab === "documents" && "Documents"}
                 {activeTab === "meetings" && "Meeting History"}
+                {activeTab === "model-settings" && "AI Model Settings"}
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -146,6 +157,9 @@ const Profile = () => {
               </TabsContent>
               <TabsContent value="meetings" className="mt-0">
                 <MeetingHistoryTab user={user} />
+              </TabsContent>
+              <TabsContent value="model-settings" className="mt-0">
+                <ModelSettingsTab />
               </TabsContent>
             </Tabs>
           </div>

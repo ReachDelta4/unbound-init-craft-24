@@ -1,7 +1,5 @@
-
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useState } from 'react';
 import { useMeetingState } from '@/hooks/use-meeting-state';
-import { usePhi3Context } from '@/contexts/Phi3Context';
 import { useCallManager } from '@/hooks/useCallManager';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,9 +14,24 @@ interface MeetingContextValue {
   updateMeeting: (id: string, data: any) => Promise<void>;
   setActiveMeeting: (meeting: any) => void;
 
-  // AI insights from Phi-3
-  insights: any;
+  // AI insights
+  insights: {
+    emotions: Array<{ emotion: string; level: number }>;
+    painPoints: string[];
+    objections: string[];
+    recommendations: string[];
+    nextActions: string[];
+  };
   generateSummary: () => string;
+  
+  // Client state from webhook
+  clientEmotion: string;
+  clientInterest: number;
+  callStage: string;
+  aiCoachingSuggestion: string;
+  
+  // Gemini response for transcribed sentences
+  lastGeminiResponse: string | null;
 
   // Call manager
   isScreenSharing: boolean;
@@ -29,6 +42,7 @@ interface MeetingContextValue {
   liveTranscript: string;
   fullTranscript: string | null;
   isStreaming: boolean;
+  reconnectAttempts: number;
   connectionTimedOut: boolean;
   setConnectionTimedOut: (value: boolean) => void;
   startCall: (callType: string, startMeeting: (type: string) => Promise<void>, user: any) => Promise<void>;
@@ -69,39 +83,38 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     updateMeeting,
     setActiveMeeting
   } = useMeetingState();
-
-  // Get AI insights from Phi-3 context instead of sample data
-  const { insights } = usePhi3Context();
   
   const callManager = useCallManager();
 
-  // Generate summary from Phi-3 insights
+  // Generate summary from insights
   const generateSummary = () => {
-    if (!insights || (!insights.painPoints?.length && !insights.recommendations?.length)) {
+    const currentInsights = callManager.insights;
+    
+    if (!currentInsights || (!currentInsights.painPoints?.length && !currentInsights.recommendations?.length)) {
       return "AI-generated summary will appear here after the call has some transcript data.";
     }
     
     let summary = "Meeting Summary:\n\n";
     
-    if (insights.painPoints?.length > 0) {
+    if (currentInsights.painPoints?.length > 0) {
       summary += "Key Pain Points:\n";
-      insights.painPoints.forEach((point: string, index: number) => {
+      currentInsights.painPoints.forEach((point: string, index: number) => {
         summary += `${index + 1}. ${point}\n`;
       });
       summary += "\n";
     }
     
-    if (insights.recommendations?.length > 0) {
+    if (currentInsights.recommendations?.length > 0) {
       summary += "Recommendations:\n";
-      insights.recommendations.forEach((rec: string, index: number) => {
+      currentInsights.recommendations.forEach((rec: string, index: number) => {
         summary += `${index + 1}. ${rec}\n`;
       });
       summary += "\n";
     }
     
-    if (insights.nextActions?.length > 0) {
+    if (currentInsights.nextActions?.length > 0) {
       summary += "Next Actions:\n";
-      insights.nextActions.forEach((action: string, index: number) => {
+      currentInsights.nextActions.forEach((action: string, index: number) => {
         summary += `${index + 1}. ${action}\n`;
       });
     }
@@ -120,12 +133,37 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     updateMeeting,
     setActiveMeeting,
 
-    // AI insights from Phi-3
-    insights,
+    // AI insights
+    insights: callManager.insights,
     generateSummary,
+    
+    // Client state from webhook
+    clientEmotion: callManager.clientEmotion,
+    clientInterest: callManager.clientInterest,
+    callStage: callManager.callStage,
+    aiCoachingSuggestion: callManager.aiCoachingSuggestion,
+    
+    // Gemini response
+    lastGeminiResponse: callManager.lastGeminiResponse,
 
-    // Call manager
-    ...callManager,
+    // Call manager - explicitly list all properties instead of using spread
+    isScreenSharing: callManager.isScreenSharing,
+    webRTCStream: callManager.webRTCStream,
+    webRTCError: callManager.webRTCError,
+    wsStatus: callManager.wsStatus,
+    wsError: callManager.wsError,
+    liveTranscript: callManager.liveTranscript,
+    fullTranscript: callManager.fullTranscript,
+    isStreaming: callManager.isStreaming,
+    reconnectAttempts: callManager.reconnectAttempts,
+    connectionTimedOut: callManager.connectionTimedOut,
+    setConnectionTimedOut: callManager.setConnectionTimedOut,
+    startCall: callManager.startCall,
+    endCall: callManager.endCall,
+    reconnectTranscription: callManager.reconnectTranscription,
+    handleConnectionTimeout: callManager.handleConnectionTimeout,
+    micStreamRef: callManager.micStreamRef,
+    systemStreamRef: callManager.systemStreamRef,
 
     // Auth
     user

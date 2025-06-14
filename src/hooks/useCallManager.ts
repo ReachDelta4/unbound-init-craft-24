@@ -1,8 +1,8 @@
-
-import { useState, useCallback, useRef } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useToast } from '@/components/ui/use-toast';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useMixedAudioWebSocket } from '@/hooks/useMixedAudioWebSocket';
+import { useTranscriptionWebSocket } from '@/hooks/useTranscriptionWebSocket';
 
 export const useCallManager = () => {
   const { toast } = useToast();
@@ -26,10 +26,64 @@ export const useCallManager = () => {
     setAutoReconnect
   } = useMixedAudioWebSocket();
 
+  // Transcription and Gemini processing
+  const {
+    lastGeminiResponse,
+    connect: connectTranscription,
+    disconnect: disconnectTranscription
+  } = useTranscriptionWebSocket();
+
+  // State for insights
+  const [insights, setInsights] = useState({
+    emotions: [
+      { emotion: "Interest", level: 75 },
+      { emotion: "Concern", level: 30 },
+      { emotion: "Enthusiasm", level: 45 },
+      { emotion: "Skepticism", level: 20 }
+    ],
+    painPoints: [
+      "Current solution is too complex to implement",
+      "Training the team takes too much time"
+    ],
+    objections: [
+      "Price seems higher than competitors",
+      "Concerned about implementation timeline"
+    ],
+    recommendations: [
+      "Demonstrate ROI calculation",
+      "Offer implementation support options"
+    ],
+    nextActions: [
+      "Schedule technical demo",
+      "Send case study on similar implementation"
+    ]
+  });
+  
+  const [clientEmotion, setClientEmotion] = useState<string>("Interest");
+  const [clientInterest, setClientInterest] = useState<number>(75);
+  const [callStage, setCallStage] = useState<string>("Discovery");
+  const [aiCoachingSuggestion, setAiCoachingSuggestion] = useState<string>(
+    "Ask about their current workflow and pain points to better understand their needs."
+  );
+
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+  const [isProcessingSentence, setIsProcessingSentence] = useState(false);
   const micStreamRef = useRef<MediaStream | null>(null);
   const systemStreamRef = useRef<MediaStream | null>(null);
+  const lastSentenceRef = useRef<string | null>(null);
+  const sentenceQueueRef = useRef<string[]>([]);
 
+  // Track the last processed sentence to avoid duplicates
+  const [processedSentences, setProcessedSentences] = useState<Set<string>>(new Set());
+
+  // Log when we get a new Gemini response
+  useEffect(() => {
+    if (lastGeminiResponse) {
+      console.log('CallManager: New Gemini response for transcribed sentence:', lastGeminiResponse);
+    }
+  }, [lastGeminiResponse]);
+
+  // Define extractAudioStreams before it's used in startCall
   const extractAudioStreams = useCallback((combinedStream: MediaStream) => {
     const audioTracks = combinedStream.getAudioTracks();
     
@@ -100,6 +154,42 @@ export const useCallManager = () => {
       setConnectionTimedOut(false);
       setAutoReconnect(true);
       
+      // Reset sentence tracking on new call
+      lastSentenceRef.current = null;
+      sentenceQueueRef.current = [];
+      setProcessedSentences(new Set());
+      setIsProcessingSentence(false);
+      
+      // Reset insights to defaults
+      setInsights({
+        emotions: [
+          { emotion: "Interest", level: 75 },
+          { emotion: "Concern", level: 30 },
+          { emotion: "Enthusiasm", level: 45 },
+          { emotion: "Skepticism", level: 20 }
+        ],
+        painPoints: [
+          "Current solution is too complex to implement",
+          "Training the team takes too much time"
+        ],
+        objections: [
+          "Price seems higher than competitors",
+          "Concerned about implementation timeline"
+        ],
+        recommendations: [
+          "Demonstrate ROI calculation",
+          "Offer implementation support options"
+        ],
+        nextActions: [
+          "Schedule technical demo",
+          "Send case study on similar implementation"
+        ]
+      });
+      setClientEmotion("Interest");
+      setClientInterest(75);
+      setCallStage("Discovery");
+      setAiCoachingSuggestion("Ask about their current workflow and pain points to better understand their needs.");
+      
       console.log('CallManager: Starting meeting in database...');
       await startMeeting(callType);
       console.log('CallManager: Meeting started in database');
@@ -147,124 +237,129 @@ export const useCallManager = () => {
           });
         }
       }
+
+      // Connect to audio websocket
+      console.log('CallManager: Connecting to audio websocket...');
+      console.log('CallManager: Audio WebSocket state:', { wsStatus, reconnectAttempts });
       
-      // Create silent system audio fallback if needed
-      if (!systemStreamRef.current?.getAudioTracks().length) {
-        console.warn('No system audio track found, creating silent fallback');
-        try {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const silentOsc = audioContext.createOscillator();
-          const silentGain = audioContext.createGain();
-          silentGain.gain.value = 0;
-          silentOsc.connect(silentGain);
-          
-          const silentDest = audioContext.createMediaStreamDestination();
-          silentGain.connect(silentDest);
-          silentOsc.start();
-          
-          systemStreamRef.current = silentDest.stream;
-          console.log('CallManager: Silent system audio stream created');
-        } catch (audioError) {
-          console.error('Failed to create silent audio stream:', audioError);
-          systemStreamRef.current = new MediaStream();
+      // Start a connection timeout
+      const connectionTimeoutId = setTimeout(() => {
+        if (wsStatus !== 'connected') {
+          handleConnectionTimeout();
         }
-      }
+      }, 10000);
       
-      console.log('Audio Tracks prepared for WebSocket:', {
-        mic: micStreamRef.current?.getAudioTracks().map(t => t.label) || [],
-        system: systemStreamRef.current?.getAudioTracks().map(t => t.label) || []
-      });
+      // Ensure we have valid MediaStream objects (fallback to empty streams)
+      const micStreamSafe = micStreamRef.current ?? new MediaStream();
+      const sysStreamSafe = systemStreamRef.current ?? new MediaStream();
+      await connectMixedAudio(micStreamSafe, sysStreamSafe);
+      console.log('CallManager: Connected to mixed audio WebSocket');
       
-      setTimeout(() => {
-        if (micStreamRef.current && systemStreamRef.current) {
-          console.log('CallManager: Starting transcription websocket...');
-          connectMixedAudio(micStreamRef.current, systemStreamRef.current, 16000);
-        } else {
-          console.error('Failed to prepare audio streams for websocket');
-        }
-      }, 1000);
+      // Also connect to the transcription WebSocket
+      connectTranscription();
+      console.log('CallManager: Connected to transcription WebSocket');
       
-      toast({
-        title: "Call started",
-        description: "Screen sharing and transcription are now active.",
-      });
+      // Clear the timeout if we got here
+      clearTimeout(connectionTimeoutId);
       
     } catch (error) {
-      console.error('Error starting call:', error);
+      console.error('CallManager: Error starting call:', error);
+      toast({
+        title: "Call Start Failed",
+        description: error instanceof Error ? error.message : "Failed to start call.",
+        variant: "destructive",
+      });
       
+      // End the meeting in the database too (cleanup)
+      try {
+        console.log('CallManager: Cleaning up failed meeting...');
+        // Implement cleanup logic here if needed
+      } catch (cleanupError) {
+        console.error('CallManager: Cleanup error:', cleanupError);
+      }
+    }
+    
+  }, [connectMixedAudio, startScreenShare, wsStatus, reconnectAttempts, toast, handleConnectionTimeout, setAutoReconnect, connectTranscription]);
+  
+  // End call and disconnect all streams
+  const endCall = useCallback(() => {
+    console.log('CallManager: Ending call...');
+    
+    try {
+      // Stop screen share
       stopScreenShare();
+
+      // Close WebSocket connections
+      disconnectMixedAudio();
+      disconnectTranscription();
+      
+      // Reset audio streams
       if (micStreamRef.current) {
         micStreamRef.current.getTracks().forEach(track => track.stop());
         micStreamRef.current = null;
       }
+      
       if (systemStreamRef.current) {
         systemStreamRef.current.getTracks().forEach(track => track.stop());
         systemStreamRef.current = null;
       }
       
-      toast({
-        title: "Failed to start call",
-        description: webRTCError || (error instanceof Error ? error.message : "Please make sure you have granted screen sharing permissions."),
-        variant: "destructive",
-      });
+      // Reset state
+      lastSentenceRef.current = null;
+      sentenceQueueRef.current = [];
+      setProcessedSentences(new Set());
+      setIsProcessingSentence(false);
+      setConnectionTimedOut(false);
+    } catch (error) {
+      console.error('CallManager: Error ending call:', error);
     }
-  }, [startScreenShare, webRTCError, connectMixedAudio, extractAudioStreams, setAutoReconnect, stopScreenShare, toast]);
-
-  const endCall = useCallback(() => {
-    disconnectMixedAudio();
-    stopScreenShare();
-    
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(track => {
-        console.log(`Explicitly stopping mic track: ${track.kind} - ${track.label}`);
-        track.stop();
-      });
-      micStreamRef.current = null;
-    }
-    
-    if (systemStreamRef.current) {
-      systemStreamRef.current.getTracks().forEach(track => {
-        console.log(`Explicitly stopping system track: ${track.kind} - ${track.label}`);
-        track.stop();
-      });
-      systemStreamRef.current = null;
-    }
-  }, [disconnectMixedAudio, stopScreenShare]);
-
+  }, [stopScreenShare, disconnectMixedAudio, disconnectTranscription]);
+  
+  // Reconnect the WebSocket connection
   const reconnectTranscription = useCallback(() => {
-    if (micStreamRef.current && systemStreamRef.current) {
-      disconnectMixedAudio();
-      setTimeout(() => {
-        connectMixedAudio(micStreamRef.current!, systemStreamRef.current!, 16000);
-      }, 500);
-    }
-  }, [disconnectMixedAudio, connectMixedAudio]);
-
+    console.log('CallManager: Attempting to reconnect to WebSockets...');
+    setConnectionTimedOut(false);
+    setAutoReconnect(true);
+    const micStreamSafe2 = micStreamRef.current ?? new MediaStream();
+    const sysStreamSafe2 = systemStreamRef.current ?? new MediaStream();
+    connectMixedAudio(micStreamSafe2, sysStreamSafe2);
+    connectTranscription();
+  }, [connectMixedAudio, setAutoReconnect, connectTranscription]);
+  
   return {
-    // WebRTC state
+    // WebRTC
     isScreenSharing,
     webRTCStream,
     webRTCError,
     
-    // WebSocket state
-    wsStatus,
+    // WebSocket
+    wsStatus, 
     wsError,
     liveTranscript,
     fullTranscript,
     isStreaming,
+    reconnectAttempts,
+    
+    // Call actions
+    startCall,
+    endCall,
+    reconnectTranscription,
+    
+    // Refs
+    micStreamRef,
+    systemStreamRef,
     
     // Connection state
     connectionTimedOut,
     setConnectionTimedOut,
-    
-    // Actions
-    startCall,
-    endCall,
-    reconnectTranscription,
     handleConnectionTimeout,
     
-    // Stream refs
-    micStreamRef,
-    systemStreamRef
+    // AI-generated insights
+    insights,
+    clientEmotion,
+    clientInterest,
+    callStage,
+    aiCoachingSuggestion,
+    lastGeminiResponse
   };
 };

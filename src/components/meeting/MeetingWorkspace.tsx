@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import FloatingNotesWidget from "@/components/FloatingNotesWidget";
@@ -15,8 +14,8 @@ import ScreenShareVideo from "./ScreenShareVideo";
 import LiveTranscriptDisplay from "./LiveTranscriptDisplay";
 import LeftInsightsPanel from "./LeftInsightsPanel";
 import RightInsightsPanel from "./RightInsightsPanel";
-import Phi3Insights from "./Phi3Insights";
-import { Phi3Insights as Phi3InsightsType } from "@/integrations/phi3/phi3Config";
+import { Button } from "@/components/ui/button";
+import GeminiClient from "@/integrations/gemini/GeminiClient";
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -35,6 +34,11 @@ interface MeetingWorkspaceProps {
   onReconnectTranscription?: () => void;
   className?: string;
   stream?: MediaStream | null;
+  clientEmotion?: string;
+  clientInterest?: number;
+  callStage?: string;
+  aiCoachingSuggestion?: string;
+  lastGeminiResponse?: string | null;
 }
 
 const MeetingWorkspace = ({ 
@@ -47,33 +51,21 @@ const MeetingWorkspace = ({
   transcriptionError = null,
   onReconnectTranscription = () => {},
   className,
-  stream = null
+  stream = null,
+  clientEmotion: providedClientEmotion = "Interest",
+  clientInterest: providedClientInterest = 75,
+  callStage: providedCallStage = "Discovery",
+  aiCoachingSuggestion: providedAiResponse = "Ask about their current workflow and pain points to better understand their needs.",
+  lastGeminiResponse = null
 }: MeetingWorkspaceProps) => {
-  // State to manage phi3-generated insights
-  const [phi3Insights, setPhi3Insights] = useState<Phi3InsightsType | null>(null);
-
-  // Use phi3 insights if available, otherwise use initial insights
-  const currentInsights = phi3Insights ? {
-    emotions: phi3Insights.emotions,
-    painPoints: phi3Insights.painPoints,
-    objections: phi3Insights.objections,
-    recommendations: phi3Insights.recommendations,
-    nextActions: phi3Insights.nextActions
-  } : initialInsights;
-
-  // Current AI coaching response and call stage from phi3
-  const aiResponse = phi3Insights?.aiCoaching || "Ask about their current workflow and pain points to better understand their needs.";
-  const currentStage = phi3Insights?.callStage || "Discovery";
+  // Use insights from props (which can be updated by webhook responses)
+  const currentInsights = initialInsights;
   
-  // Get the highest emotion level for the current client emotion
-  const currentEmotion = 
-    phi3Insights?.emotions?.length > 0
-      ? [...phi3Insights.emotions].sort((a, b) => b.level - a.level)[0].emotion
-      : "Interested";
-  
-  // Get client interest level (using the Interest emotion if available)
-  const clientInterest = 
-    phi3Insights?.emotions?.find(e => e.emotion === "Interest")?.level || 75;
+  // Use provided values from webhook responses or fallback to defaults
+  const currentEmotion = providedClientEmotion;
+  const clientInterestLevel = providedClientInterest;
+  const currentStage = providedCallStage;
+  const aiResponse = providedAiResponse;
 
   // Debug stream information when it changes
   useEffect(() => {
@@ -87,6 +79,13 @@ const MeetingWorkspace = ({
       streamActive: stream?.active
     });
   }, [stream, isCallActive]);
+
+  // Log when we get a new Gemini response
+  useEffect(() => {
+    if (lastGeminiResponse) {
+      console.log('MeetingWorkspace: New Gemini response received:', lastGeminiResponse);
+    }
+  }, [lastGeminiResponse]);
 
   // Add debugging for the screen share video props
   const screenShareProps = {
@@ -103,23 +102,39 @@ const MeetingWorkspace = ({
 
   console.log('MeetingWorkspace: Passing to ScreenShareVideo:', screenShareProps);
 
+  // Function to test Gemini API directly
+  const testGeminiAPI = async () => {
+    console.log('MeetingWorkspace: Testing Gemini API directly');
+    
+    if (!GeminiClient) {
+      console.error('MeetingWorkspace: GeminiClient is not available');
+      alert('GeminiClient is not available');
+      return;
+    }
+    
+    try {
+      const testMessage = "Hello, this is a test message from the MeetingWorkspace component. Please respond with a short confirmation.";
+      console.log('MeetingWorkspace: Sending test message to Gemini:', testMessage);
+      
+      const response = await GeminiClient.sendMessage(testMessage);
+      console.log('MeetingWorkspace: Received response from Gemini:', response);
+      
+      alert(`Gemini API Test Result: ${response}`);
+    } catch (error) {
+      console.error('MeetingWorkspace: Error testing Gemini API:', error);
+      alert(`Gemini API Test Error: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   return (
     <div className={cn("h-full overflow-hidden relative", className)}>
-      {/* Add Phi3Insights component to process transcript */}
-      <Phi3Insights 
-        liveText={realtimeText}
-        transcriptHistory={fullSentences}
-        onInsightsUpdated={setPhi3Insights}
-        className="hidden"
-      />
-
       <div className="h-full flex flex-col">
         {/* Compact Top Section */}
         <div className="flex-shrink-0 p-3 space-y-2 border-b border-border">
           {/* First row: Client Interest (20%), Client Emotion, Call Stage, User Controls */}
           <div className="flex gap-3 items-center">
             <div className="w-1/5">
-              <ClientInterestBar interestLevel={clientInterest} />
+              <ClientInterestBar interestLevel={clientInterestLevel} />
             </div>
             <div className="flex-1">
               <SimpleClientEmotion currentEmotion={currentEmotion} />
@@ -128,6 +143,14 @@ const MeetingWorkspace = ({
               <CallStageIndicator currentStage={currentStage} />
             </div>
             <div className="flex justify-end items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={testGeminiAPI}
+                className="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800"
+              >
+                Test Gemini API
+              </Button>
               <ThemeToggle />
               <UserMenu />
             </div>
@@ -181,6 +204,9 @@ const MeetingWorkspace = ({
                     <LiveTranscriptDisplay 
                       liveText={realtimeText}
                       transcriptHistory={fullSentences}
+                      transcriptionStatus={transcriptionStatus}
+                      transcriptionError={transcriptionError}
+                      onReconnect={onReconnectTranscription}
                     />
                   </div>
                 </div>
@@ -208,9 +234,9 @@ const MeetingWorkspace = ({
           </ResizablePanelGroup>
         </div>
       </div>
-
+      
       {/* Floating Notes Widget */}
-      <FloatingNotesWidget isCallActive={isCallActive} />
+      <FloatingNotesWidget />
     </div>
   );
 };

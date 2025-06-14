@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -13,27 +13,40 @@ interface MeetingControlsProps {
   isCallActive: boolean;
   callType: string | null;
   callDuration: number;
-  onCallTypeChange: (value: string) => void;
-  onStartCall: () => void;
+  setCallDuration?: (duration: number) => void;
+  onCallTypeChange?: (value: string) => void;
+  onStartCall: (callType: string) => void;
   onEndCall: () => void;
-  isLoading?: boolean;
-  isSaving?: boolean;
+  isCreatingMeeting?: boolean;
+  isSavingMeeting?: boolean;
 }
 
 const MeetingControls = ({
   isCallActive,
-  callType,
+  callType: propCallType,
   callDuration,
-  onCallTypeChange,
   onStartCall,
   onEndCall,
-  isLoading = false,
-  isSaving = false,
+  isCreatingMeeting = false,
+  isSavingMeeting = false,
 }: MeetingControlsProps) => {
+  // Local state for call type selection
+  const [selectedCallType, setSelectedCallType] = useState<string>(propCallType || "");
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleCallTypeChange = (value: string) => {
+    setSelectedCallType(value);
+  };
+
+  const handleStartCall = () => {
+    if (selectedCallType) {
+      onStartCall(selectedCallType);
+    }
   };
 
   return (
@@ -46,9 +59,9 @@ const MeetingControls = ({
       )}
       
       <Select
-        value={callType || ""}
-        onValueChange={onCallTypeChange}
-        disabled={isCallActive || isLoading}
+        value={isCallActive ? propCallType || "" : selectedCallType}
+        onValueChange={handleCallTypeChange}
+        disabled={isCallActive || isCreatingMeeting}
       >
         <SelectTrigger className="w-[180px] h-9">
           <SelectValue placeholder="Select call type" />
@@ -75,9 +88,9 @@ const MeetingControls = ({
           variant="destructive" 
           size="sm"
           className="gap-2 h-9 px-4"
-          disabled={isSaving}
+          disabled={isSavingMeeting}
         >
-          {isSaving ? (
+          {isSavingMeeting ? (
             <>
               <Loader2 size={16} className="animate-spin" />
               Saving...
@@ -91,13 +104,13 @@ const MeetingControls = ({
         </Button>
       ) : (
         <Button 
-          onClick={onStartCall} 
+          onClick={handleStartCall} 
           variant="default" 
           size="sm"
-          disabled={!callType || isLoading}
+          disabled={!selectedCallType || isCreatingMeeting}
           className="bg-indigo-600 hover:bg-indigo-700 gap-2 h-9 px-4"
         >
-          {isLoading ? (
+          {isCreatingMeeting ? (
             <>
               <Loader2 size={16} className="animate-spin" />
               Starting...

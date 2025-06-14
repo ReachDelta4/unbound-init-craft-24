@@ -24,9 +24,9 @@ const EndCallConfirmationDialog = ({
           <DialogTitle className="text-center">End Current Call?</DialogTitle>
           <DialogDescription className="text-center pt-2">
             This will end your current call and disconnect from the meeting. You'll be immediately taken to the save screen where you must save your meeting data.
-            <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+            <span className="block mt-2 text-sm text-amber-600 dark:text-amber-400">
               <strong>Important:</strong> After ending the call, you won't be able to return to it.
-            </p>
+            </span>
           </DialogDescription>
         </DialogHeader>
 
