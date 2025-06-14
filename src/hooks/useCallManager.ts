@@ -1,24 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useMixedAudioWebSocket } from '@/hooks/useMixedAudioWebSocket';
 import { useTranscriptionWebSocket } from '@/hooks/useTranscriptionWebSocket';
-import { sendToWebhook } from '@/utils/webhookUtils';
-
-// Define the interface for the response from the webhook
-interface WebhookResponse {
-  insights?: {
-    emotions?: Array<{ emotion: string; level: number }>;
-    painPoints?: string[];
-    objections?: string[];
-    recommendations?: string[];
-    nextActions?: string[];
-  };
-  clientEmotion?: string;
-  clientInterest?: number;
-  callStage?: string;
-  aiCoachingSuggestion?: string;
-}
 
 export const useCallManager = () => {
   const { toast } = useToast();
@@ -42,12 +26,14 @@ export const useCallManager = () => {
     setAutoReconnect
   } = useMixedAudioWebSocket();
 
-  // Transcription webhook support
+  // Transcription and Gemini processing
   const {
-    setWebhookUrl
+    lastGeminiResponse,
+    connect: connectTranscription,
+    disconnect: disconnectTranscription
   } = useTranscriptionWebSocket();
 
-  // State for insights from webhook
+  // State for insights
   const [insights, setInsights] = useState({
     emotions: [
       { emotion: "Interest", level: 75 },
@@ -80,8 +66,6 @@ export const useCallManager = () => {
     "Ask about their current workflow and pain points to better understand their needs."
   );
 
-  // Use the webhook URL with AI endpoint
-  const [webhookUrl, setWebhookUrlState] = useState<string | null>("http://127.0.0.1:5678/webhook-test");
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [isProcessingSentence, setIsProcessingSentence] = useState(false);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -89,176 +73,17 @@ export const useCallManager = () => {
   const lastSentenceRef = useRef<string | null>(null);
   const sentenceQueueRef = useRef<string[]>([]);
 
-  // Track the last processed sentence to avoid duplicate webhook calls
+  // Track the last processed sentence to avoid duplicates
   const [processedSentences, setProcessedSentences] = useState<Set<string>>(new Set());
-  const [webhookErrorCount, setWebhookErrorCount] = useState<number>(0);
 
-  const setTranscriptionWebhookUrl = useCallback((url: string | null) => {
-    // Keep the URL as provided, don't modify it
-    setWebhookUrlState(url);
-    setWebhookUrl(url);
-  }, [setWebhookUrl]);
-
-  // Use effect to set the webhook URL on component initialization
+  // Log when we get a new Gemini response
   useEffect(() => {
-    // Default webhook URL
-    setWebhookUrl("http://127.0.0.1:5678/webhook-test");
-  }, [setWebhookUrl]);
-
-  // Update UI based on webhook response
-  const updateInsightsFromResponse = useCallback((response: WebhookResponse) => {
-    if (!response) {
-      console.warn('CallManager: Received empty response from webhook');
-      return;
+    if (lastGeminiResponse) {
+      console.log('CallManager: New Gemini response for transcribed sentence:', lastGeminiResponse);
     }
-    
-    try {
-      console.log('CallManager: Updating insights from webhook response', response);
-      
-      // Update insights if provided
-      if (response.insights) {
-        setInsights(prevInsights => {
-          // Create a safe copy with fallbacks to previous values
-          return {
-            emotions: Array.isArray(response.insights?.emotions) 
-              ? response.insights.emotions 
-              : prevInsights.emotions,
-            painPoints: Array.isArray(response.insights?.painPoints) 
-              ? response.insights.painPoints 
-              : prevInsights.painPoints,
-            objections: Array.isArray(response.insights?.objections) 
-              ? response.insights.objections 
-              : prevInsights.objections,
-            recommendations: Array.isArray(response.insights?.recommendations) 
-              ? response.insights.recommendations 
-              : prevInsights.recommendations,
-            nextActions: Array.isArray(response.insights?.nextActions) 
-              ? response.insights.nextActions 
-              : prevInsights.nextActions
-          };
-        });
-      }
-      
-      // Update client emotion if provided
-      if (typeof response.clientEmotion === 'string' && response.clientEmotion.trim() !== '') {
-        setClientEmotion(response.clientEmotion);
-      }
-      
-      // Update client interest if provided and is a valid number
-      if (typeof response.clientInterest === 'number' && !isNaN(response.clientInterest)) {
-        // Ensure the value is within 0-100 range
-        const safeInterest = Math.max(0, Math.min(100, response.clientInterest));
-        setClientInterest(safeInterest);
-      }
-      
-      // Update call stage if provided
-      if (typeof response.callStage === 'string' && response.callStage.trim() !== '') {
-        setCallStage(response.callStage);
-      }
-      
-      // Update AI coaching suggestion if provided
-      if (typeof response.aiCoachingSuggestion === 'string' && response.aiCoachingSuggestion.trim() !== '') {
-        setAiCoachingSuggestion(response.aiCoachingSuggestion);
-      }
-    } catch (error) {
-      console.error('CallManager: Error processing webhook response:', error);
-    }
-  }, []);
+  }, [lastGeminiResponse]);
 
-  // Process sentences from the queue one at a time
-  const processSentenceQueue = useCallback(async () => {
-    if (isProcessingSentence || !webhookUrl || sentenceQueueRef.current.length === 0) {
-      return;
-    }
-
-    try {
-      setIsProcessingSentence(true);
-      
-      // Get the next sentence from the queue
-      const sentence = sentenceQueueRef.current[0];
-      
-      console.log('CallManager: Processing sentence from queue:', sentence);
-      
-      try {
-        // Send to webhook and wait for response
-        const response = await sendToWebhook(webhookUrl, { sentence });
-        
-        console.log('CallManager: Webhook response for sentence:', response);
-        
-        // Update insights based on the response
-        updateInsightsFromResponse(response);
-        
-        // Reset error count on success
-        setWebhookErrorCount(0);
-      } catch (error) {
-        console.error('Webhook error:', error);
-        // Increment error count
-        setWebhookErrorCount(prev => prev + 1);
-        
-        // If we've had multiple errors, show toast notification
-        if (webhookErrorCount >= 2) {
-          toast({
-            title: "Webhook Connection Issue",
-            description: "Unable to connect to the webhook. Make sure the URL is correct and the service is running.",
-            variant: "destructive",
-          });
-          // Reset count after notification
-          setWebhookErrorCount(0);
-        }
-      }
-      
-      // Remove the processed sentence from the queue
-      sentenceQueueRef.current.shift();
-      
-      // Update last sentence reference
-      lastSentenceRef.current = sentence;
-      
-      // Add to processed set
-      setProcessedSentences(prev => {
-        const updated = new Set(prev);
-        updated.add(sentence);
-        return updated;
-      });
-      
-    } catch (error) {
-      console.error('Error processing sentence:', error);
-    } finally {
-      setIsProcessingSentence(false);
-      
-      // If there are more sentences in the queue, process the next one
-      if (sentenceQueueRef.current.length > 0) {
-        processSentenceQueue();
-      }
-    }
-  }, [isProcessingSentence, webhookUrl, updateInsightsFromResponse, webhookErrorCount, toast]);
-
-  // Monitor fullTranscript changes to detect new sentences and add them to the queue
-  useEffect(() => {
-    if (webhookUrl && fullTranscript) {
-      const sentences = fullTranscript.split('\n').filter(Boolean);
-      
-      // Find the most recent sentence (if any)
-      if (sentences.length > 0) {
-        // Check all sentences that haven't been processed yet
-        sentences.forEach(sentence => {
-          if (sentence !== lastSentenceRef.current && !processedSentences.has(sentence) && 
-              !sentenceQueueRef.current.includes(sentence)) {
-            
-            console.log('CallManager: Adding new sentence to queue:', sentence);
-            
-            // Add to queue
-            sentenceQueueRef.current.push(sentence);
-          }
-        });
-        
-        // Try to process the queue if we're not already processing
-        if (!isProcessingSentence && sentenceQueueRef.current.length > 0) {
-          processSentenceQueue();
-        }
-      }
-    }
-  }, [webhookUrl, fullTranscript, processedSentences, isProcessingSentence, processSentenceQueue]);
-
+  // Define extractAudioStreams before it's used in startCall
   const extractAudioStreams = useCallback((combinedStream: MediaStream) => {
     const audioTracks = combinedStream.getAudioTracks();
     
@@ -412,140 +237,129 @@ export const useCallManager = () => {
           });
         }
       }
+
+      // Connect to audio websocket
+      console.log('CallManager: Connecting to audio websocket...');
+      console.log('CallManager: Audio WebSocket state:', { wsStatus, reconnectAttempts });
       
-      // Create silent system audio fallback if needed
-      if (!systemStreamRef.current?.getAudioTracks().length) {
-        console.warn('No system audio track found, creating silent fallback');
-        try {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const silentOsc = audioContext.createOscillator();
-          const silentGain = audioContext.createGain();
-          silentGain.gain.value = 0;
-          silentOsc.connect(silentGain);
-          
-          const silentDest = audioContext.createMediaStreamDestination();
-          silentGain.connect(silentDest);
-          silentOsc.start();
-          
-          systemStreamRef.current = silentDest.stream;
-          console.log('CallManager: Silent system audio stream created');
-        } catch (audioError) {
-          console.error('Failed to create silent audio stream:', audioError);
-          systemStreamRef.current = new MediaStream();
+      // Start a connection timeout
+      const connectionTimeoutId = setTimeout(() => {
+        if (wsStatus !== 'connected') {
+          handleConnectionTimeout();
         }
-      }
+      }, 10000);
       
-      console.log('Audio Tracks prepared for WebSocket:', {
-        mic: micStreamRef.current?.getAudioTracks().map(t => t.label) || [],
-        system: systemStreamRef.current?.getAudioTracks().map(t => t.label) || []
-      });
+      // Ensure we have valid MediaStream objects (fallback to empty streams)
+      const micStreamSafe = micStreamRef.current ?? new MediaStream();
+      const sysStreamSafe = systemStreamRef.current ?? new MediaStream();
+      await connectMixedAudio(micStreamSafe, sysStreamSafe);
+      console.log('CallManager: Connected to mixed audio WebSocket');
       
-      setTimeout(() => {
-        if (micStreamRef.current && systemStreamRef.current) {
-          console.log('CallManager: Starting transcription websocket...');
-          connectMixedAudio(micStreamRef.current, systemStreamRef.current, 16000);
-        } else {
-          console.error('Failed to prepare audio streams for websocket');
-        }
-      }, 1000);
+      // Also connect to the transcription WebSocket
+      connectTranscription();
+      console.log('CallManager: Connected to transcription WebSocket');
       
-      toast({
-        title: "Call started",
-        description: "Screen sharing and transcription are now active.",
-      });
+      // Clear the timeout if we got here
+      clearTimeout(connectionTimeoutId);
       
     } catch (error) {
-      console.error('Error starting call:', error);
+      console.error('CallManager: Error starting call:', error);
+      toast({
+        title: "Call Start Failed",
+        description: error instanceof Error ? error.message : "Failed to start call.",
+        variant: "destructive",
+      });
       
+      // End the meeting in the database too (cleanup)
+      try {
+        console.log('CallManager: Cleaning up failed meeting...');
+        // Implement cleanup logic here if needed
+      } catch (cleanupError) {
+        console.error('CallManager: Cleanup error:', cleanupError);
+      }
+    }
+    
+  }, [connectMixedAudio, startScreenShare, wsStatus, reconnectAttempts, toast, handleConnectionTimeout, setAutoReconnect, connectTranscription]);
+  
+  // End call and disconnect all streams
+  const endCall = useCallback(() => {
+    console.log('CallManager: Ending call...');
+    
+    try {
+      // Stop screen share
       stopScreenShare();
+
+      // Close WebSocket connections
+      disconnectMixedAudio();
+      disconnectTranscription();
+      
+      // Reset audio streams
       if (micStreamRef.current) {
         micStreamRef.current.getTracks().forEach(track => track.stop());
         micStreamRef.current = null;
       }
+      
       if (systemStreamRef.current) {
         systemStreamRef.current.getTracks().forEach(track => track.stop());
         systemStreamRef.current = null;
       }
       
-      toast({
-        title: "Failed to start call",
-        description: webRTCError || (error instanceof Error ? error.message : "Please make sure you have granted screen sharing permissions."),
-        variant: "destructive",
-      });
+      // Reset state
+      lastSentenceRef.current = null;
+      sentenceQueueRef.current = [];
+      setProcessedSentences(new Set());
+      setIsProcessingSentence(false);
+      setConnectionTimedOut(false);
+    } catch (error) {
+      console.error('CallManager: Error ending call:', error);
     }
-  }, [startScreenShare, webRTCError, connectMixedAudio, extractAudioStreams, setAutoReconnect, stopScreenShare, toast]);
-
-  const endCall = useCallback(() => {
-    disconnectMixedAudio();
-    stopScreenShare();
-    
-    // Reset sentence tracking on call end
-    lastSentenceRef.current = null;
-    sentenceQueueRef.current = [];
-    setProcessedSentences(new Set());
-    setIsProcessingSentence(false);
-    
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(track => {
-        console.log(`Explicitly stopping mic track: ${track.kind} - ${track.label}`);
-        track.stop();
-      });
-      micStreamRef.current = null;
-    }
-    
-    if (systemStreamRef.current) {
-      systemStreamRef.current.getTracks().forEach(track => {
-        console.log(`Explicitly stopping system track: ${track.kind} - ${track.label}`);
-        track.stop();
-      });
-      systemStreamRef.current = null;
-    }
-  }, [disconnectMixedAudio, stopScreenShare]);
-
+  }, [stopScreenShare, disconnectMixedAudio, disconnectTranscription]);
+  
+  // Reconnect the WebSocket connection
   const reconnectTranscription = useCallback(() => {
-    if (micStreamRef.current && systemStreamRef.current) {
-      disconnectMixedAudio();
-      setTimeout(() => {
-        connectMixedAudio(micStreamRef.current!, systemStreamRef.current!, 16000);
-      }, 500);
-    }
-  }, [disconnectMixedAudio, connectMixedAudio]);
-
+    console.log('CallManager: Attempting to reconnect to WebSockets...');
+    setConnectionTimedOut(false);
+    setAutoReconnect(true);
+    const micStreamSafe2 = micStreamRef.current ?? new MediaStream();
+    const sysStreamSafe2 = systemStreamRef.current ?? new MediaStream();
+    connectMixedAudio(micStreamSafe2, sysStreamSafe2);
+    connectTranscription();
+  }, [connectMixedAudio, setAutoReconnect, connectTranscription]);
+  
   return {
-    // WebRTC state
+    // WebRTC
     isScreenSharing,
     webRTCStream,
     webRTCError,
     
-    // WebSocket state
-    wsStatus,
+    // WebSocket
+    wsStatus, 
     wsError,
     liveTranscript,
     fullTranscript,
     isStreaming,
     reconnectAttempts,
-    connectionTimedOut,
-    setConnectionTimedOut,
     
-    // Webhook configuration
-    webhookUrl,
-    setWebhookUrl: setTranscriptionWebhookUrl,
-    
-    // Call control methods
+    // Call actions
     startCall,
     endCall,
     reconnectTranscription,
-    handleConnectionTimeout,
     
-    // Refs to media streams
+    // Refs
     micStreamRef,
     systemStreamRef,
     
-    // Insights and UI state
+    // Connection state
+    connectionTimedOut,
+    setConnectionTimedOut,
+    handleConnectionTimeout,
+    
+    // AI-generated insights
     insights,
     clientEmotion,
     clientInterest,
     callStage,
-    aiCoachingSuggestion
+    aiCoachingSuggestion,
+    lastGeminiResponse
   };
 };

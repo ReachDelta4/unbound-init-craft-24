@@ -15,6 +15,7 @@
     "electron:preview": "cross-env ELECTRON=true vite build && electron ."
   },
   "dependencies": {
+    "@google/genai": "^1.5.1",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
@@ -51,6 +52,7 @@
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
     "docx": "^9.5.0",
+    "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.3.0",
     "file-saver": "^2.0.5",
     "html-docx-js": "^0.3.1",
@@ -59,7 +61,6 @@
     "jspdf": "^3.0.1",
     "lucide-react": "^0.462.0",
     "mammoth": "^1.9.0",
-    "n8n": "^1.97.1",
     "next-themes": "^0.3.0",
     "pdfjs-dist": "^5.2.133",
     "react": "^18.3.1",

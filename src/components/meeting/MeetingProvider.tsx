@@ -29,6 +29,9 @@ interface MeetingContextValue {
   clientInterest: number;
   callStage: string;
   aiCoachingSuggestion: string;
+  
+  // Gemini response for transcribed sentences
+  lastGeminiResponse: string | null;
 
   // Call manager
   isScreenSharing: boolean;
@@ -39,6 +42,7 @@ interface MeetingContextValue {
   liveTranscript: string;
   fullTranscript: string | null;
   isStreaming: boolean;
+  reconnectAttempts: number;
   connectionTimedOut: boolean;
   setConnectionTimedOut: (value: boolean) => void;
   startCall: (callType: string, startMeeting: (type: string) => Promise<void>, user: any) => Promise<void>;
@@ -47,10 +51,6 @@ interface MeetingContextValue {
   handleConnectionTimeout: () => void;
   micStreamRef: React.MutableRefObject<MediaStream | null>;
   systemStreamRef: React.MutableRefObject<MediaStream | null>;
-  
-  // Webhook functionality
-  webhookUrl: string | null;
-  setWebhookUrl: (url: string | null) => void;
 
   // Auth
   user: any;
@@ -142,9 +142,28 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     clientInterest: callManager.clientInterest,
     callStage: callManager.callStage,
     aiCoachingSuggestion: callManager.aiCoachingSuggestion,
+    
+    // Gemini response
+    lastGeminiResponse: callManager.lastGeminiResponse,
 
-    // Call manager
-    ...callManager,
+    // Call manager - explicitly list all properties instead of using spread
+    isScreenSharing: callManager.isScreenSharing,
+    webRTCStream: callManager.webRTCStream,
+    webRTCError: callManager.webRTCError,
+    wsStatus: callManager.wsStatus,
+    wsError: callManager.wsError,
+    liveTranscript: callManager.liveTranscript,
+    fullTranscript: callManager.fullTranscript,
+    isStreaming: callManager.isStreaming,
+    reconnectAttempts: callManager.reconnectAttempts,
+    connectionTimedOut: callManager.connectionTimedOut,
+    setConnectionTimedOut: callManager.setConnectionTimedOut,
+    startCall: callManager.startCall,
+    endCall: callManager.endCall,
+    reconnectTranscription: callManager.reconnectTranscription,
+    handleConnectionTimeout: callManager.handleConnectionTimeout,
+    micStreamRef: callManager.micStreamRef,
+    systemStreamRef: callManager.systemStreamRef,
 
     // Auth
     user

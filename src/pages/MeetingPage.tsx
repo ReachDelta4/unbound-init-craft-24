@@ -23,12 +23,11 @@ const MeetingPageContent = () => {
     isStreaming,
     reconnectTranscription,
     insights,
-    webhookUrl,
-    setWebhookUrl,
     clientEmotion,
     clientInterest,
     callStage,
-    aiCoachingSuggestion
+    aiCoachingSuggestion,
+    lastGeminiResponse
   } = useMeetingContext();
 
   const {
@@ -72,11 +71,11 @@ const MeetingPageContent = () => {
     fullSentences: fullTranscript ? fullTranscript.split('\n').filter(Boolean) : [],
     liveTranscript,
     insights,
-    webhookUrl,
     clientEmotion,
     clientInterest,
     callStage,
-    aiCoachingSuggestion
+    aiCoachingSuggestion,
+    lastGeminiResponse
   });
 
   // Parse full sentences from the transcript
@@ -87,7 +86,7 @@ const MeetingPageContent = () => {
       <div className="relative">
         <MeetingWorkspace
           isCallActive={isCallActive}
-          transcript={fullTranscript || ""}
+          transcript={formattedTranscript}
           insights={insights}
           realtimeText={liveTranscript}
           fullSentences={fullSentences}
@@ -95,12 +94,11 @@ const MeetingPageContent = () => {
           transcriptionError={wsError}
           onReconnectTranscription={reconnectTranscription}
           stream={webRTCStream}
-          webhookUrl={webhookUrl}
-          onWebhookUrlChange={setWebhookUrl}
           clientEmotion={clientEmotion}
           clientInterest={clientInterest}
           callStage={callStage}
           aiCoachingSuggestion={aiCoachingSuggestion}
+          lastGeminiResponse={lastGeminiResponse}
           className={`transition-all duration-300 ${
             isCallActive && !showControls 
               ? "h-screen" 
@@ -131,13 +129,12 @@ const MeetingPageContent = () => {
         >
           <MeetingControls
             isCallActive={isCallActive}
+            isCreatingMeeting={isCreatingMeeting}
+            isSavingMeeting={isSavingMeeting}
+            onStartCall={handleStartCall}
+            onEndCall={handleEndCall}
             callType={callType}
             callDuration={uiCallDuration}
-            onCallTypeChange={handleStartCall}
-            onStartCall={() => handleStartCall(callType || "video")}
-            onEndCall={handleEndCall}
-            isLoading={isCreatingMeeting}
-            isSaving={isSavingMeeting}
           />
           <div className="text-xs text-center text-muted-foreground mt-1">
             {wsStatus === 'connected' && isStreaming ? (

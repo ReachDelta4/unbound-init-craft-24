@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import { MeetingStateProvider } from "@/hooks/use-meeting-state";
 import StickyCallBar from "@/components/StickyCallBar";
+import FloatingGeminiChat from "@/components/FloatingGeminiChat";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ const App = () => (
           <AuthProvider>
             <MeetingStateProvider>
               <StickyCallBar />
+              <FloatingGeminiChat />
               <Toaster />
               <Sonner />
               <Routes>

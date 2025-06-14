@@ -8,14 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFile: (options) => ipcRenderer.invoke('open-file', options),
   
   // Screen sharing
-  getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
-  getScreenSources: (options) => ipcRenderer.invoke('DESKTOP_CAPTURER_GET_SOURCES', options),
-  
-  // n8n integration
-  n8nStatus: () => ipcRenderer.invoke('n8n-status'),
-  
-  // llama.cpp integration
-  llamaStatus: () => ipcRenderer.invoke('llama-status'),
+  getDesktopSources: (options) => ipcRenderer.invoke('get-desktop-sources', options),
+  getScreenSources: (options) => ipcRenderer.invoke('get-desktop-sources', options),
   
   // Environment info
   isElectron: true,

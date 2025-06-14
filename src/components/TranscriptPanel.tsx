@@ -12,8 +12,6 @@ interface TranscriptPanelProps {
   transcriptionStatus?: TranscriptionWSStatus;
   transcriptionError?: string | null;
   onReconnect?: () => void;
-  webhookUrl?: string | null;
-  onWebhookUrlChange?: (url: string | null) => void;
 }
 
 const TranscriptPanel = ({
@@ -23,9 +21,7 @@ const TranscriptPanel = ({
   fullSentences = [],
   transcriptionStatus = "disconnected",
   transcriptionError = null,
-  onReconnect = () => {},
-  webhookUrl = null,
-  onWebhookUrlChange = () => {}
+  onReconnect = () => {}
 }: TranscriptPanelProps) => {
   // Reference to the scroll container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -62,8 +58,6 @@ const TranscriptPanel = ({
             status={transcriptionStatus}
             error={transcriptionError}
             onReconnect={onReconnect}
-            onWebhookUrlChange={onWebhookUrlChange}
-            webhookUrl={webhookUrl}
           />
         )}
       </div>

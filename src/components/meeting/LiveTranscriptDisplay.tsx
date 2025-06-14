@@ -11,8 +11,6 @@ interface LiveTranscriptDisplayProps {
   transcriptionStatus?: TranscriptionWSStatus;
   transcriptionError?: string | null;
   onReconnect?: () => void;
-  webhookUrl?: string | null;
-  onWebhookUrlChange?: (url: string | null) => void;
 }
 
 const LiveTranscriptDisplay = ({ 
@@ -20,9 +18,7 @@ const LiveTranscriptDisplay = ({
   transcriptHistory,
   transcriptionStatus = "disconnected",
   transcriptionError = null,
-  onReconnect = () => {},
-  webhookUrl = null,
-  onWebhookUrlChange = () => {}
+  onReconnect = () => {}
 }: LiveTranscriptDisplayProps) => {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
@@ -35,8 +31,6 @@ const LiveTranscriptDisplay = ({
           status={transcriptionStatus}
           error={transcriptionError}
           onReconnect={onReconnect}
-          webhookUrl={webhookUrl}
-          onWebhookUrlChange={onWebhookUrlChange}
         />
       </div>
       

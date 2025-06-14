@@ -144,12 +144,20 @@ export const useWebRTC = () => {
 
         if (isElectron() && window.electronAPI && typeof window.electronAPI.getScreenSources === 'function') {
           try {
-            const sources = await window.electronAPI.getScreenSources({
+            const response = await window.electronAPI.getScreenSources({
               types: ['screen', 'window'],
               thumbnailSize: { width: 150, height: 150 },
               fetchWindowIcons: true,
             });
-
+            
+            console.log('useWebRTC: Electron getScreenSources response:', response);
+            
+            if (!response.success) {
+              throw new Error(response.error || 'Failed to get screen sources from Electron');
+            }
+            
+            const sources = response.sources;
+            
             if (sources && sources.length > 0) {
               const src = sources.find((s: any) => s.name.toLowerCase().includes('screen')) || sources[0];
               // @ts-ignore

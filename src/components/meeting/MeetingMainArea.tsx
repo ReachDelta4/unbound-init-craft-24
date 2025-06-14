@@ -1,4 +1,3 @@
-
 import React from "react";
 import MeetingWorkspace from "./MeetingWorkspace";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
@@ -20,6 +19,7 @@ interface MeetingMainAreaProps {
   transcriptionError: string | null;
   onReconnectTranscription: () => void;
   stream: MediaStream | null;
+  lastGeminiResponse?: string | null;
 }
 
 const MeetingMainArea = ({
@@ -32,7 +32,8 @@ const MeetingMainArea = ({
   transcriptionStatus,
   transcriptionError,
   onReconnectTranscription,
-  stream
+  stream,
+  lastGeminiResponse
 }: MeetingMainAreaProps) => {
   return (
     <div 
@@ -52,6 +53,7 @@ const MeetingMainArea = ({
         transcriptionError={transcriptionError}
         onReconnectTranscription={onReconnectTranscription}
         stream={stream}
+        lastGeminiResponse={lastGeminiResponse}
       />
     </div>
   );
