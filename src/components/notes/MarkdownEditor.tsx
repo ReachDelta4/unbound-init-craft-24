@@ -11,7 +11,7 @@ import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
 import { saveAs } from "file-saver";
 import { markdownToDocxBlob } from "@/lib/markdown-to-docx";
-import { saveToFile, openFile } from "@/lib/electron-utils";
+import { saveToFile, openFile } from "@/lib/file-utils";
 
 const MarkdownEditor = () => {
   const { activeMeeting } = useMeetingState();
@@ -68,15 +68,14 @@ const MarkdownEditor = () => {
         html2canvas: { scale: 0.7, backgroundColor: null },
       });
       
-      // Get PDF as blob/string
+      // Get PDF as blob
       const pdfOutput = pdf.output('blob');
       
-      // Use our utility function that works in both Electron and browser
       const fileName = activeMeeting?.title ? 
         `${activeMeeting.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes.pdf` : 
         "notes.pdf";
       
-      await saveToFile(await pdfOutput.text(), fileName, 'pdf');
+      await saveToFile(pdfOutput, fileName, 'pdf');
     } catch (error) {
       toast && toast({
         title: "Export failed",
@@ -95,13 +94,7 @@ const MarkdownEditor = () => {
         `${activeMeeting.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes.docx` : 
         "notes.docx";
       
-      // Convert blob to string for our utility function
-      const reader = new FileReader();
-      reader.readAsText(docxBlob);
-      
-      reader.onload = async () => {
-        await saveToFile(reader.result as string, fileName, 'docx');
-      };
+      await saveToFile(docxBlob, fileName, 'docx');
     } catch (error) {
       toast && toast({
         title: "Export failed",
@@ -111,10 +104,17 @@ const MarkdownEditor = () => {
     }
   };
 
-  // Import handler using Electron utilities when available
+  // Import handler using browser file utilities
   const handleImport = async () => {
     try {
-      const result = await openFile();
+      const result = await openFile({
+        filters: [
+          { name: 'Text files', extensions: ['txt', 'md'] },
+          { name: 'Word documents', extensions: ['docx'] },
+          { name: 'PDF files', extensions: ['pdf'] }
+        ]
+      });
+      
       if (!result) return;
       
       const { content, filePath } = result;
@@ -123,24 +123,11 @@ const MarkdownEditor = () => {
       if (ext === "txt" || ext === "md") {
         setMarkdown(content);
         setIsEditing(true);
-      } else if (ext === "docx") {
-        // For DOCX, we still need to use mammoth to convert
-        // This would need to be handled in the main process for Electron
-        // For now, we'll keep the file input approach for DOCX
-        toast && toast({
-          title: "DOCX import",
-          description: "Please use the file input for DOCX files for now.",
-          variant: "default",
-        });
-      } else if (ext === "pdf") {
-        // For PDF, we still need to use PDF.js to extract text
-        // This would need to be handled in the main process for Electron
-        // For now, we'll keep the file input approach for PDF
-        toast && toast({
-          title: "PDF import",
-          description: "Please use the file input for PDF files for now.",
-          variant: "default",
-        });
+      } else if (ext === "docx" || ext === "pdf") {
+        // For DOCX and PDF, we need to use the file input approach
+        if (fileInputRef.current) {
+          fileInputRef.current.click();
+        }
       } else {
         toast && toast({
           title: "Unsupported file type",
@@ -156,7 +143,7 @@ const MarkdownEditor = () => {
     }
   };
 
-  // Traditional file input handler (fallback)
+  // Traditional file input handler (for DOCX and PDF)
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

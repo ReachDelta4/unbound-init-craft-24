@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { isElectron, getDesktopSources } from '@/lib/electron-screen-share';
 
 interface ScreenCaptureState {
   stream: MediaStream | null;
@@ -18,13 +17,10 @@ const useScreenCapture = () => {
 
   const startCapture = useCallback(async (): Promise<MediaStream> => {
     try {
-      console.log("Requesting screen capture...", isElectron() ? "Using Electron API" : "Using Browser API");
+      console.log("Requesting screen capture...");
       
-      let stream: MediaStream | null = null;
-      
-      // Use browser API directly - this works in both Electron and browser
-      // Electron will show its own picker dialog
-      stream = await navigator.mediaDevices.getDisplayMedia({
+      // Use browser API for screen capture
+      const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true
       });

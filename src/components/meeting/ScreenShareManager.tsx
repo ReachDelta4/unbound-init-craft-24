@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { isElectron } from '@/lib/browser-detection';
+import { isScreenSharingSupported } from '@/lib/browser-detection';
 
 interface ScreenShareManagerProps {
   onScreenShare: (stream: MediaStream | null) => void;
@@ -19,24 +19,11 @@ export default function ScreenShareManager({ onScreenShare, isScreenSharing }: S
   const startScreenShare = useCallback(async () => {
     setLoading(true);
     try {
-      let stream: MediaStream | null = null;
-      
-      // Use Electron's desktop capturer if in Electron environment
-      if (isElectron()) {
-        // In most recent Electron versions, navigator.mediaDevices.getDisplayMedia works
-        // and shows the system picker dialog automatically.
-        // Using it avoids extra IPC complexity and permission issues.
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false
-        });
-      } else {
-        // Standard browser screen sharing
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false
-        });
-      }
+      // Standard browser screen sharing
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+      });
       
       if (stream) {
         // Add handler for when user stops sharing via browser UI
@@ -50,9 +37,7 @@ export default function ScreenShareManager({ onScreenShare, isScreenSharing }: S
       console.error('Failed to start screen sharing:', error);
       toast({
         title: 'Failed to start call',
-        description: isElectron() 
-          ? 'Screen sharing is not working in this Electron build. Please check permissions.'
-          : 'Screen sharing is not supported in this browser.',
+        description: 'Screen sharing is not supported in this browser or permission was denied.',
         variant: 'destructive',
       });
     } finally {
@@ -72,7 +57,7 @@ export default function ScreenShareManager({ onScreenShare, isScreenSharing }: S
       variant="outline"
       size="sm"
       onClick={isScreenSharing ? stopScreenShare : startScreenShare}
-      disabled={loading}
+      disabled={loading || !isScreenSharingSupported()}
     >
       {loading ? 'Starting...' : isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
     </Button>
