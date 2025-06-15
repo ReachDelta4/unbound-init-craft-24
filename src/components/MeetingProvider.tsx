@@ -100,7 +100,7 @@ const MeetingProviderComponent: React.FC<{ children: ReactNode }> = ({ children 
       {children}
     </MeetingContext.Provider>
   );
-};
+}; 
 
 // Export a memoized version of the provider to prevent unnecessary re-renders
 export const MeetingProvider = React.memo(MeetingProviderComponent); 

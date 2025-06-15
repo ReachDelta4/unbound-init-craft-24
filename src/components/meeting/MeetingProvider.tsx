@@ -2,6 +2,7 @@ import React, { createContext, useContext, ReactNode, useState } from 'react';
 import { useMeetingState } from '@/hooks/use-meeting-state';
 import { useCallManager } from '@/hooks/useCallManager';
 import { useAuth } from '@/contexts/AuthContext';
+import { CallDetails } from '@/components/meeting/StartCallDialog';
 
 interface MeetingContextValue {
   // Meeting state
@@ -19,7 +20,9 @@ interface MeetingContextValue {
     emotions: Array<{ emotion: string; level: number }>;
     painPoints: string[];
     objections: string[];
+    buyingSignals: string[];
     recommendations: string[];
+    closingTechniques: string[];
     nextActions: string[];
   };
   generateSummary: () => string;
@@ -27,6 +30,7 @@ interface MeetingContextValue {
   // Client state from webhook
   clientEmotion: string;
   clientInterest: number;
+  closingPotential: number;
   callStage: string;
   aiCoachingSuggestion: string;
   
@@ -45,7 +49,7 @@ interface MeetingContextValue {
   reconnectAttempts: number;
   connectionTimedOut: boolean;
   setConnectionTimedOut: (value: boolean) => void;
-  startCall: (callType: string, startMeeting: (type: string) => Promise<void>, user: any) => Promise<void>;
+  startCall: (callType: string, startMeeting: (type: string) => Promise<void>, user: any, details: CallDetails) => Promise<void>;
   endCall: () => void;
   reconnectTranscription: () => void;
   handleConnectionTimeout: () => void;
@@ -140,6 +144,7 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     // Client state from webhook
     clientEmotion: callManager.clientEmotion,
     clientInterest: callManager.clientInterest,
+    closingPotential: callManager.closingPotential,
     callStage: callManager.callStage,
     aiCoachingSuggestion: callManager.aiCoachingSuggestion,
     

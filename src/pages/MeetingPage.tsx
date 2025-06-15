@@ -9,6 +9,7 @@ import MeetingDialogsManager from "@/components/meeting/MeetingDialogsManager";
 import { MeetingProvider, useMeetingContext } from "@/components/meeting/MeetingProvider";
 import { useMeetingPageLogic } from "@/hooks/useMeetingPageLogic";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
+import { StartCallDialog } from "@/components/meeting/StartCallDialog";
 
 const MeetingPageContent = () => {
   const {
@@ -39,6 +40,9 @@ const MeetingPageContent = () => {
     setShowControls,
     showMeetingDialog,
     showEndCallConfirmation,
+    showStartCallDialog,
+    handleShowStartCallDialog,
+    handleCloseStartCallDialog,
     handleStartCall,
     handleCloseMeetingDialog,
     handleEndCall,
@@ -131,7 +135,7 @@ const MeetingPageContent = () => {
             isCallActive={isCallActive}
             isCreatingMeeting={isCreatingMeeting}
             isSavingMeeting={isSavingMeeting}
-            onStartCall={handleStartCall}
+            onShowStartCallDialog={handleShowStartCallDialog}
             onEndCall={handleEndCall}
             callType={callType}
             callDuration={uiCallDuration}
@@ -167,6 +171,12 @@ const MeetingPageContent = () => {
         summary={summary}
         insights={formattedInsights}
         saveProgress={savingProgress}
+      />
+
+      <StartCallDialog
+        open={showStartCallDialog}
+        onOpenChange={(open) => !open && handleCloseStartCallDialog()}
+        onSubmit={handleStartCall}
       />
     </MainLayout>
   );

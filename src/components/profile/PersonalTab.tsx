@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +22,7 @@ interface PersonalTabProps {
 
 const PersonalTab: React.FC<PersonalTabProps> = ({ user }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   
   const form = useForm<ProfileFormValues>({
     defaultValues: {
@@ -38,7 +38,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ user }) => {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('first_name, last_name, phone')
+          .select('first_name, last_name, phone, avatar_url')
           .eq('id', user.id)
           .single();
         
@@ -50,6 +50,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ user }) => {
             lastName: data.last_name || "",
             phone: data.phone || "",
           });
+          setAvatarUrl(data.avatar_url);
         }
       } catch (error: any) {
         console.error("Error fetching profile:", error.message);
@@ -77,6 +78,50 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ user }) => {
       toast.success("Profile updated successfully");
     } catch (error: any) {
       toast.error("Error updating profile: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle avatar upload
+  const onAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
+    }
+
+    const file = event.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    setIsLoading(true);
+    try {
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const publicUrl = data.publicUrl;
+
+      // Update profiles table
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, avatar_url: publicUrl });
+      
+      if (updateError) throw updateError;
+      
+      setAvatarUrl(publicUrl);
+      toast.success("Avatar updated successfully!");
+
+    } catch (error: any) {
+      toast.error("Error uploading avatar: " + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -136,12 +181,27 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ user }) => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="flex items-center gap-4">
                 <Avatar className="w-20 h-20">
-                  <AvatarImage src="" />
+                  <AvatarImage src={avatarUrl || ""} />
                   <AvatarFallback className="text-xl">
                     {user.email?.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <Button type="button" variant="outline">Change Avatar</Button>
+                <input
+                  type="file"
+                  id="avatar-upload"
+                  className="hidden"
+                  onChange={onAvatarChange}
+                  accept="image/png, image/jpeg"
+                  aria-label="Upload Avatar"
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => document.getElementById('avatar-upload')?.click()}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Uploading...' : 'Change Avatar'}
+                </Button>
               </div>
               
               <div className="grid gap-4 md:grid-cols-2">

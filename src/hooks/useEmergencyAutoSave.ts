@@ -1,4 +1,3 @@
-
 import { useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -6,7 +5,9 @@ interface AutoSaveData {
   emotions: Array<{ emotion: string; level: number }>;
   painPoints: string[];
   objections: string[];
+  buyingSignals: string[];
   recommendations: string[];
+  closingTechniques: string[];
   nextActions: string[];
 }
 
@@ -37,7 +38,9 @@ export const useEmergencyAutoSave = (
             { type: 'emotions', data: insights.emotions },
             { type: 'painPoints', data: insights.painPoints },
             { type: 'objections', data: insights.objections },
+            { type: 'buyingSignals', data: insights.buyingSignals },
             { type: 'recommendations', data: insights.recommendations },
+            { type: 'closingTechniques', data: insights.closingTechniques },
             { type: 'nextActions', data: insights.nextActions }
           ];
           
@@ -68,7 +71,9 @@ export const useEmergencyAutoSave = (
               { type: 'emotions', data: insights.emotions },
               { type: 'painPoints', data: insights.painPoints },
               { type: 'objections', data: insights.objections },
+              { type: 'buyingSignals', data: insights.buyingSignals },
               { type: 'recommendations', data: insights.recommendations },
+              { type: 'closingTechniques', data: insights.closingTechniques },
               { type: 'nextActions', data: insights.nextActions }
             ];
             

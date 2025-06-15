@@ -14,8 +14,6 @@ import ScreenShareVideo from "./ScreenShareVideo";
 import LiveTranscriptDisplay from "./LiveTranscriptDisplay";
 import LeftInsightsPanel from "./LeftInsightsPanel";
 import RightInsightsPanel from "./RightInsightsPanel";
-import { Button } from "@/components/ui/button";
-import GeminiClient from "@/integrations/gemini/GeminiClient";
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -102,30 +100,6 @@ const MeetingWorkspace = ({
 
   console.log('MeetingWorkspace: Passing to ScreenShareVideo:', screenShareProps);
 
-  // Function to test Gemini API directly
-  const testGeminiAPI = async () => {
-    console.log('MeetingWorkspace: Testing Gemini API directly');
-    
-    if (!GeminiClient) {
-      console.error('MeetingWorkspace: GeminiClient is not available');
-      alert('GeminiClient is not available');
-      return;
-    }
-    
-    try {
-      const testMessage = "Hello, this is a test message from the MeetingWorkspace component. Please respond with a short confirmation.";
-      console.log('MeetingWorkspace: Sending test message to Gemini:', testMessage);
-      
-      const response = await GeminiClient.sendMessage(testMessage);
-      console.log('MeetingWorkspace: Received response from Gemini:', response);
-      
-      alert(`Gemini API Test Result: ${response}`);
-    } catch (error) {
-      console.error('MeetingWorkspace: Error testing Gemini API:', error);
-      alert(`Gemini API Test Error: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
   return (
     <div className={cn("h-full overflow-hidden relative", className)}>
       <div className="h-full flex flex-col">
@@ -143,14 +117,6 @@ const MeetingWorkspace = ({
               <CallStageIndicator currentStage={currentStage} />
             </div>
             <div className="flex justify-end items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={testGeminiAPI}
-                className="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800"
-              >
-                Test Gemini API
-              </Button>
               <ThemeToggle />
               <UserMenu />
             </div>

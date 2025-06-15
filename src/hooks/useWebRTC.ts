@@ -157,7 +157,7 @@ export const useWebRTC = () => {
             }
             
             const sources = response.sources;
-            
+
             if (sources && sources.length > 0) {
               const src = sources.find((s: any) => s.name.toLowerCase().includes('screen')) || sources[0];
               // @ts-ignore

@@ -32,3 +32,5 @@ resources/llama-cpp/*.exe
 
 # Build files
 dist/
+
+out/

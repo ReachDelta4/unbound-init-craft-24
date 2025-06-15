@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useMeetingContext } from '@/components/meeting/MeetingProvider';
@@ -35,7 +34,9 @@ export const useMeetingDialogs = () => {
         { type: 'emotions', data: insights.emotions },
         { type: 'painPoints', data: insights.painPoints },
         { type: 'objections', data: insights.objections },
+        { type: 'buyingSignals', data: insights.buyingSignals },
         { type: 'recommendations', data: insights.recommendations },
+        { type: 'closingTechniques', data: insights.closingTechniques },
         { type: 'nextActions', data: insights.nextActions }
       ];
       

@@ -13,7 +13,7 @@ const testGeminiAPI = async () => {
     
     console.log('Sending test request to Gemini API...');
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash-preview-05-20',
       contents: 'Hello, Gemini! This is a test message.'
     });
     

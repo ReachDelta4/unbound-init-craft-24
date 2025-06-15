@@ -36,15 +36,6 @@ const TranscriptionStatus: React.FC<TranscriptionStatusProps> = ({
           <span className="text-xs text-red-500">
             {error || "Connection error"}
           </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-6 px-2 py-0 ml-2"
-            onClick={onReconnect}
-          >
-            <RefreshCw size={12} className="mr-1" />
-            Reconnect
-          </Button>
         </>
       )}
       
@@ -52,15 +43,6 @@ const TranscriptionStatus: React.FC<TranscriptionStatusProps> = ({
         <>
           <AlertCircle size={16} className="text-gray-500" />
           <span className="text-xs text-gray-500">Disconnected</span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-6 px-2 py-0 ml-2"
-            onClick={onReconnect}
-          >
-            <RefreshCw size={12} className="mr-1" />
-            Connect
-          </Button>
         </>
       )}
     </div>

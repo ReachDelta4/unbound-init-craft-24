@@ -3,6 +3,7 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
+import { showCustomToast } from "@/components/ui/custom-toast";
 
 interface AuthContextProps {
   user: User | null;
@@ -33,14 +34,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (event === 'SIGNED_IN') {
           if (!hasShownSignInToast.current) {
-            toast.success("Successfully signed in");
+            showCustomToast("Successfully signed in", "success", 2000);
             hasShownSignInToast.current = true;
           }
           navigate("/");
         } else if (event === 'TOKEN_REFRESHED') {
           // Do not show toast on token refresh
         } else if (event === 'SIGNED_OUT') {
-          toast.info("Signed out");
+          showCustomToast("Signed out", "info", 2000);
           navigate("/auth");
           hasShownSignInToast.current = false;
         }
@@ -63,9 +64,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-      toast.success("Registration successful! Please check your email to confirm your account.");
+      showCustomToast("Registration successful! Please check your email to confirm your account.", "success", 4000);
     } catch (error: any) {
-      toast.error(error.message);
+      showCustomToast(error.message, "error", 4000);
       throw error;
     }
   };
@@ -75,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
     } catch (error: any) {
-      toast.error(error.message);
+      showCustomToast(error.message, "error", 4000);
       throw error;
     }
   };
@@ -85,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     } catch (error: any) {
-      toast.error(error.message);
+      showCustomToast(error.message, "error", 4000);
       throw error;
     }
   };
@@ -96,9 +97,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         redirectTo: window.location.origin + "/auth/update-password",
       });
       if (error) throw error;
-      toast.success("Password reset email sent. Please check your inbox.");
+      showCustomToast("Password reset email sent. Please check your inbox.", "success", 4000);
     } catch (error: any) {
-      toast.error(error.message);
+      showCustomToast(error.message, "error", 4000);
       throw error;
     }
   };
@@ -109,10 +110,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password: newPassword,
       });
       if (error) throw error;
-      toast.success("Password updated successfully!");
+      showCustomToast("Password updated successfully!", "success", 3000);
       navigate("/");
     } catch (error: any) {
-      toast.error(error.message);
+      showCustomToast(error.message, "error", 4000);
       throw error;
     }
   };

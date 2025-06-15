@@ -1,9 +1,9 @@
-
 import { useState, useCallback, useRef } from 'react';
 import { useMeetingContext } from '@/components/meeting/MeetingProvider';
 import { useControlsVisibility } from '@/hooks/useControlsVisibility';
 import { useMeetingDialogs } from '@/hooks/useMeetingDialogs';
 import { useMeetingEffects } from '@/hooks/useMeetingEffects';
+import { CallDetails } from '@/components/meeting/StartCallDialog';
 
 export const useMeetingPageLogic = () => {
   const meetingContext = useMeetingContext();
@@ -21,6 +21,8 @@ export const useMeetingPageLogic = () => {
   const [uiCallDuration, setUiCallDuration] = useState(0);
   const tempTranscriptRef = useRef("");
   const tempSummaryRef = useRef("");
+  const [showStartCallDialog, setShowStartCallDialog] = useState(false);
+  const [callTypeToStart, setCallTypeToStart] = useState<string | null>(null);
 
   const isCallActive = !!(activeMeeting && activeMeeting.status === 'active');
   const callType = activeMeeting?.platform || null;
@@ -35,9 +37,24 @@ export const useMeetingPageLogic = () => {
     setUiCallDuration
   });
 
-  const handleStartCall = useCallback(async (callType: string) => {
-    await startCall(callType, startMeeting, user);
-  }, [startCall, startMeeting, user]);
+  const handleShowStartCallDialog = (callType: string) => {
+    setCallTypeToStart(callType);
+    setShowStartCallDialog(true);
+  };
+
+  const handleCloseStartCallDialog = () => {
+    setShowStartCallDialog(false);
+    setCallTypeToStart(null);
+  };
+
+  const handleStartCall = useCallback(async (details: CallDetails) => {
+    if (callTypeToStart) {
+      console.log("Starting call with details:", details);
+      await startCall(callTypeToStart, startMeeting, user, details);
+      setShowStartCallDialog(false);
+      setCallTypeToStart(null);
+    }
+  }, [callTypeToStart, startCall, startMeeting, user]);
 
   const handleSaveMeetingWrapper = useCallback(async (title: string, transcript: string, summary: string) => {
     await dialogs.handleSaveMeeting(title, transcript, summary, tempTranscriptRef, tempSummaryRef);
@@ -52,11 +69,14 @@ export const useMeetingPageLogic = () => {
     setUiCallDuration,
     showControls,
     setShowControls,
+    showStartCallDialog,
     
     // Dialogs
     ...dialogs,
     
     // Handlers
+    handleShowStartCallDialog,
+    handleCloseStartCallDialog,
     handleStartCall,
     handleSaveMeeting: handleSaveMeetingWrapper,
     
@@ -67,7 +87,9 @@ export const useMeetingPageLogic = () => {
       { type: 'emotions', data: insights.emotions },
       { type: 'painPoints', data: insights.painPoints },
       { type: 'objections', data: insights.objections },
+      { type: 'buyingSignals', data: insights.buyingSignals },
       { type: 'recommendations', data: insights.recommendations },
+      { type: 'closingTechniques', data: insights.closingTechniques },
       { type: 'nextActions', data: insights.nextActions }
     ],
     savingProgress

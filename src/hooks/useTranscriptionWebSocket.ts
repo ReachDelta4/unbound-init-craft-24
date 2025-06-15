@@ -31,9 +31,10 @@ interface UseTranscriptionWebSocketResult {
  *   ws.disconnect();
  *   // Use ws.status, ws.realtimeText, ws.fullSentences, ws.error in UI
  */
-export function useTranscriptionWebSocket(
-  onFinalizedSentence: (sentence: string) => void
-): UseTranscriptionWebSocketResult {
+export const useTranscriptionWebSocket = (
+  onProcessSentence: (sentence: string) => void,
+  onRealtimeTranscript?: (transcript: string) => void
+) => {
   const { toast } = useToast();
   
   const [status, setStatus] = useState<TranscriptionWSStatus>('disconnected');
@@ -43,15 +44,20 @@ export function useTranscriptionWebSocket(
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
 
-  // Ref to hold the real-time transcript being built between finalized sentences
-  const interimTranscriptRef = useRef('');
-
   // Ref for the debounce timer
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Ref to prevent multiple debounce timers during a single utterance
+  const isWaitingForUtteranceEnd = useRef<boolean>(false);
+  
+  // Ref to hold the most recent interim sentence
+  const lastInterimSentence = useRef<string>('');
+
   // Ref to store normalized sentences that have been processed to prevent duplicates
   const processedSentencesRef = useRef<Set<string>>(new Set());
   
+  const DEBOUNCE_DELAY = 1500; // ms
+
   const normalizeSentence = useCallback((sentence: string): string => {
     // Lowercase, trim, and remove all punctuation for better matching.
     return sentence.trim().toLowerCase().replace(/[.,!?-]/g, '');
@@ -69,8 +75,19 @@ export function useTranscriptionWebSocket(
     
     console.log('TranscriptionWebSocket: Triggering processing for:', sentence);
     processedSentencesRef.current.add(normalized);
-    onFinalizedSentence(sentence);
-  }, [onFinalizedSentence, normalizeSentence]);
+    onProcessSentence(sentence);
+  }, [onProcessSentence, normalizeSentence]);
+
+  // Function to safely update realtime transcript
+  const updateRealtimeTranscript = useCallback((text: string) => {
+    // Update internal state
+    setRealtimeText(text);
+    
+    // Call the callback if provided
+    if (typeof onRealtimeTranscript === 'function') {
+      onRealtimeTranscript(text);
+    }
+  }, [onRealtimeTranscript]);
 
   // Open WebSocket connection
   const connect = useCallback(() => {
@@ -101,25 +118,25 @@ export function useTranscriptionWebSocket(
           const msg: BackendMessage = JSON.parse(event.data);
           
           if (msg.type === 'realtime' && typeof msg.text === 'string') {
-            // Append new text to our interim buffer.
-            interimTranscriptRef.current += msg.text;
-            setRealtimeText(interimTranscriptRef.current);
+            // The service sends the full interim transcript, so we just replace it.
+            lastInterimSentence.current = msg.text;
+            updateRealtimeTranscript(msg.text); // Use the safe wrapper function
 
-            // If a debounce timer is already running, clear it.
-            if (debounceTimerRef.current) {
-              clearTimeout(debounceTimerRef.current);
+            // If we are not already waiting for a pause, start a new timer.
+            if (!isWaitingForUtteranceEnd.current) {
+              isWaitingForUtteranceEnd.current = true;
+              
+              debounceTimerRef.current = setTimeout(() => {
+                const sentenceToProcess = lastInterimSentence.current.trim();
+                if (sentenceToProcess) {
+                  console.log('TranscriptionWebSocket: Debounce timer fired. Processing interim sentence.');
+                  triggerProcessing(sentenceToProcess);
+                }
+                // The pause is over, reset the flag to allow the next utterance to start a new timer.
+                isWaitingForUtteranceEnd.current = false;
+                debounceTimerRef.current = null;
+              }, DEBOUNCE_DELAY);
             }
-            
-            // Set a new timer. If the user pauses, this will fire.
-            debounceTimerRef.current = setTimeout(() => {
-              const sentenceToProcess = interimTranscriptRef.current.trim();
-              if (sentenceToProcess) {
-                console.log('TranscriptionWebSocket: Debounce timer fired. Processing interim sentence.');
-                triggerProcessing(sentenceToProcess);
-                // Clear the buffer after processing.
-                interimTranscriptRef.current = '';
-              }
-            }, 1200); // Wait 1.2s for a pause before processing.
 
           } else if (msg.type === 'fullSentence' && msg.text) {
             console.log('TranscriptionWebSocket: Received full sentence:', msg.text);
@@ -131,9 +148,10 @@ export function useTranscriptionWebSocket(
               debounceTimerRef.current = null;
             }
             
-            // Clear the interim buffer and UI display.
-            interimTranscriptRef.current = '';
-            setRealtimeText('');
+            // This utterance is complete, so reset the flag.
+            isWaitingForUtteranceEnd.current = false;
+            // Clear the interim UI display.
+            updateRealtimeTranscript('');
 
             // Process the definitive sentence.
             triggerProcessing(msg.text);
@@ -159,7 +177,7 @@ export function useTranscriptionWebSocket(
       setError('Failed to connect WebSocket');
       console.error('TranscriptionWebSocket: Failed to connect:', err);
     }
-  }, [triggerProcessing, toast]);
+  }, [triggerProcessing, toast, updateRealtimeTranscript, normalizeSentence, onProcessSentence]);
 
   // Close WebSocket connection
   const disconnect = useCallback(() => {

@@ -6,8 +6,9 @@ import {
   GenerationConfig,
   ChatSession,
 } from "@google/generative-ai";
-import { salesCallAnalysisSystemPrompt } from "./SystemPrompts";
+import { salesCallAnalysisSystemPrompt, generateSystemPromptWithNotes, UserProfile } from "./SystemPrompts";
 import { ModelSettings } from "@/types";
+import { CallDetails } from "@/components/meeting/StartCallDialog";
 
 // Default settings
 const defaultSettings: ModelSettings = {
@@ -56,6 +57,18 @@ class GeminiClient {
     this.apiKey = import.meta.env.VITE_GEMINI_API_KEY || null;
     console.log("GeminiClient: Constructor called");
 
+    // Try to load settings from localStorage
+    const savedSettings = localStorage.getItem("geminiModelSettings");
+    if (savedSettings) {
+      try {
+        const parsedSettings = JSON.parse(savedSettings);
+        this.settings = { ...this.settings, ...parsedSettings };
+        console.log(`GeminiClient: Loaded settings from localStorage, using model: ${this.settings.model}`);
+      } catch (e) {
+        console.error("GeminiClient: Failed to parse saved model settings:", e);
+      }
+    }
+
     if (!this.apiKey) {
       console.error(
         "GeminiClient: API key is not defined. Please set VITE_GEMINI_API_KEY environment variable."
@@ -97,16 +110,32 @@ class GeminiClient {
   /**
    * Starts a new stateful chat session with the sales analysis system prompt.
    * This session will maintain conversation history.
+   * @param notes Optional notes data to include in the system prompt
    */
-  public startSalesAnalysisChat(): ChatSession {
+  public startSalesAnalysisChat(details: CallDetails, notes: {
+    markdown?: string;
+    checklist?: Array<{id: string; label: string; completed: boolean}>;
+    questions?: Array<{id: number; text: string}>;
+  }, userProfile: UserProfile): ChatSession {
     if (!this.model) {
       throw new Error("Gemini model is not initialized.");
     }
+    
     console.log("GeminiClient: Starting stateful sales analysis chat session...");
+    
+    // Use the notes-enhanced system prompt if notes are provided
+    const systemPrompt = notes 
+      ? generateSystemPromptWithNotes(details, notes, userProfile)
+      : salesCallAnalysisSystemPrompt;
+    
+    if (notes) {
+      console.log("GeminiClient: Including user notes in system prompt");
+    }
+    
     return this.model.startChat({
       systemInstruction: {
         role: "system",
-        parts: [{ text: salesCallAnalysisSystemPrompt }],
+        parts: [{ text: systemPrompt }],
       },
       generationConfig: {
         responseMimeType: "application/json",
@@ -181,6 +210,21 @@ class GeminiClient {
     console.log('GeminiClient: Updating settings to model:', newSettings.model);
     this.settings = { ...newSettings };
     localStorage.setItem("geminiModelSettings", JSON.stringify(this.settings));
+    
+    // Update the model instance with the new settings
+    this.updateModelInstance();
+  }
+  
+  /**
+   * Update the model instance with current settings
+   */
+  private updateModelInstance(): void {
+    if (this.genAI && this.apiKey) {
+      console.log(`GeminiClient: Updating model instance to ${this.settings.model}`);
+      this.model = this.genAI.getGenerativeModel({
+        model: this.settings.model,
+      });
+    }
   }
   
   /**

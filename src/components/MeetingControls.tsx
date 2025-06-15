@@ -15,7 +15,7 @@ interface MeetingControlsProps {
   callDuration: number;
   setCallDuration?: (duration: number) => void;
   onCallTypeChange?: (value: string) => void;
-  onStartCall: (callType: string) => void;
+  onShowStartCallDialog: (callType: string) => void;
   onEndCall: () => void;
   isCreatingMeeting?: boolean;
   isSavingMeeting?: boolean;
@@ -25,7 +25,7 @@ const MeetingControls = ({
   isCallActive,
   callType: propCallType,
   callDuration,
-  onStartCall,
+  onShowStartCallDialog,
   onEndCall,
   isCreatingMeeting = false,
   isSavingMeeting = false,
@@ -45,7 +45,7 @@ const MeetingControls = ({
 
   const handleStartCall = () => {
     if (selectedCallType) {
-      onStartCall(selectedCallType);
+      onShowStartCallDialog(selectedCallType);
     }
   };
 

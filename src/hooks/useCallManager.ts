@@ -3,11 +3,17 @@ import { useToast } from '@/components/ui/use-toast';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useMixedAudioWebSocket } from '@/hooks/useMixedAudioWebSocket';
 import { useTranscriptionWebSocket } from '@/hooks/useTranscriptionWebSocket';
+import { useNotesState } from '@/hooks/use-notes-state';
+import { useMeetingState } from '@/hooks/use-meeting-state';
 import GeminiClient from '@/integrations/gemini/GeminiClient';
 import { ChatSession } from '@google/generative-ai';
+import { CallDetails } from '@/components/meeting/StartCallDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { UserProfile } from '@/integrations/gemini/SystemPrompts';
 
 export const useCallManager = () => {
   const { toast } = useToast();
+  const { activeMeeting } = useMeetingState();
   const {
     startScreenShare,
     stopScreenShare,
@@ -30,6 +36,10 @@ export const useCallManager = () => {
 
   // This ref will hold the persistent chat session for the duration of the call
   const chatSessionRef = useRef<ChatSession | null>(null);
+
+  // Get notes directly from useNotesState for active monitoring
+  const meetingId = activeMeeting?.id || null;
+  const { markdown, checklist, questions } = useNotesState(meetingId, activeMeeting);
 
   // This function will be called by the WebSocket hook when a sentence is ready
   const handleFinalizedSentence = useCallback(async (sentence: string) => {
@@ -63,19 +73,49 @@ export const useCallManager = () => {
         return;
       }
 
-      console.log('CallManager: Successfully parsed insights from Gemini session.');
-      // Update all the relevant states
-      setInsights({
-        emotions: parsedInsights.emotions || [],
-        painPoints: parsedInsights.painPoints || [],
-        objections: parsedInsights.objections || [],
-        recommendations: parsedInsights.recommendations || [],
-        nextActions: parsedInsights.nextActions || [],
-      });
-      setClientEmotion(parsedInsights.clientEmotion || "Processing...");
-      setClientInterest(parsedInsights.clientInterest || 0);
-      setCallStage(parsedInsights.callStage || "Processing...");
-      setAiCoachingSuggestion(parsedInsights.aiCoachingSuggestion || "Waiting for next insight...");
+      console.log('CallManager: Successfully parsed insights from Gemini session.', parsedInsights);
+      
+      // Selectively update insights state based on what's present in the response
+      if (parsedInsights.emotions) {
+        setInsights(prevInsights => ({ ...prevInsights, emotions: parsedInsights.emotions }));
+      }
+      if (parsedInsights.painPoints) {
+        setInsights(prevInsights => ({ ...prevInsights, painPoints: parsedInsights.painPoints }));
+      }
+      if (parsedInsights.objections) {
+        setInsights(prevInsights => ({ ...prevInsights, objections: parsedInsights.objections }));
+      }
+      if (parsedInsights.buyingSignals) {
+        setInsights(prevInsights => ({ ...prevInsights, buyingSignals: parsedInsights.buyingSignals }));
+      }
+      if (parsedInsights.recommendations) {
+        setInsights(prevInsights => ({ ...prevInsights, recommendations: parsedInsights.recommendations }));
+      }
+      if (parsedInsights.closingTechniques) {
+        setInsights(prevInsights => ({ ...prevInsights, closingTechniques: parsedInsights.closingTechniques }));
+      }
+      if (parsedInsights.nextActions) {
+        setInsights(prevInsights => ({ ...prevInsights, nextActions: parsedInsights.nextActions }));
+      }
+      
+      // Update other states only if they're present in the response
+      if (parsedInsights.clientEmotion) {
+        setClientEmotion(parsedInsights.clientEmotion);
+      }
+      if (parsedInsights.clientInterest !== undefined) {
+        setClientInterest(parsedInsights.clientInterest);
+      }
+      if (parsedInsights.closingPotential !== undefined) {
+        setClosingPotential(parsedInsights.closingPotential);
+      }
+      if (parsedInsights.callStage) {
+        setCallStage(parsedInsights.callStage);
+      }
+      
+      // Simply update coaching suggestion if it's present - rely on Gemini's intelligence
+      if (parsedInsights.aiCoachingSuggestion) {
+        setAiCoachingSuggestion(parsedInsights.aiCoachingSuggestion);
+      }
 
     } catch (error) {
       console.error('CallManager: Failed to process sentence or parse response:', error);
@@ -86,40 +126,27 @@ export const useCallManager = () => {
   const {
     connect: connectTranscription,
     disconnect: disconnectTranscription
-  } = useTranscriptionWebSocket(handleFinalizedSentence);
+  } = useTranscriptionWebSocket(handleFinalizedSentence, (text) => {
+    // This is optional, but we can use it to update UI if needed
+    // For now, we're just providing it to avoid the error
+  });
 
   // State for insights
   const [insights, setInsights] = useState({
-    emotions: [
-      { emotion: "Interest", level: 75 },
-      { emotion: "Concern", level: 30 },
-      { emotion: "Enthusiasm", level: 45 },
-      { emotion: "Skepticism", level: 20 }
-    ],
-    painPoints: [
-      "Current solution is too complex to implement",
-      "Training the team takes too much time"
-    ],
-    objections: [
-      "Price seems higher than competitors",
-      "Concerned about implementation timeline"
-    ],
-    recommendations: [
-      "Demonstrate ROI calculation",
-      "Offer implementation support options"
-    ],
-    nextActions: [
-      "Schedule technical demo",
-      "Send case study on similar implementation"
-    ]
+    emotions: [],
+    painPoints: [],
+    objections: [],
+    buyingSignals: [],
+    recommendations: [],
+    closingTechniques: [],
+    nextActions: []
   });
   
-  const [clientEmotion, setClientEmotion] = useState<string>("Interest");
-  const [clientInterest, setClientInterest] = useState<number>(75);
-  const [callStage, setCallStage] = useState<string>("Discovery");
-  const [aiCoachingSuggestion, setAiCoachingSuggestion] = useState<string>(
-    "Ask about their current workflow and pain points to better understand their needs."
-  );
+  const [clientEmotion, setClientEmotion] = useState<string>("");
+  const [clientInterest, setClientInterest] = useState<number>(0);
+  const [closingPotential, setClosingPotential] = useState<number>(0);
+  const [callStage, setCallStage] = useState<string>("");
+  const [aiCoachingSuggestion, setAiCoachingSuggestion] = useState<string>("");
 
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [isProcessingSentence, setIsProcessingSentence] = useState(false);
@@ -193,7 +220,143 @@ export const useCallManager = () => {
     setAutoReconnect(false);
   }, [toast, setAutoReconnect]);
 
-  const startCall = useCallback(async (callType: string, startMeeting: (type: string) => Promise<void>, user: any) => {
+  // Function to get current notes from localStorage
+  const getCurrentNotes = () => {
+    // Get notes from localStorage to ensure we have the most recent version
+    let markdown = "";
+    let checklist = [];
+    let questions = [];
+    
+    try {
+      markdown = localStorage.getItem('notes-markdown') || "";
+      
+      const checklistStr = localStorage.getItem('notes-checklist');
+      if (checklistStr) {
+        checklist = JSON.parse(checklistStr);
+      }
+      
+      const questionsStr = localStorage.getItem('notes-questions');
+      if (questionsStr) {
+        questions = JSON.parse(questionsStr);
+      }
+    } catch (error) {
+      console.error('CallManager: Error getting notes from localStorage:', error);
+    }
+    
+    return { markdown, checklist, questions };
+  };
+
+  // Track notes for changes during a call
+  const notesRef = useRef(getCurrentNotes());
+  
+  // Function to update the chat session with latest notes
+  const updateChatSessionWithNotes = useCallback(async (forceUpdate = false) => {
+    if (!chatSessionRef.current) return;
+    
+    // Use either direct notes from hook or localStorage
+    const currentNotes = {
+      markdown,
+      checklist,
+      questions
+    };
+    
+    // Check if notes have changed
+    const prevNotes = notesRef.current;
+    const hasChanged = forceUpdate ||
+      currentNotes.markdown !== prevNotes.markdown ||
+      JSON.stringify(currentNotes.checklist) !== JSON.stringify(prevNotes.checklist) ||
+      JSON.stringify(currentNotes.questions) !== JSON.stringify(prevNotes.questions);
+    
+    if (!hasChanged) return;
+    
+    console.log('CallManager: Notes changed during call, updating Gemini context');
+    
+    try {
+      // Send a system message to update the context with new notes
+      // We'll format this as a special system message that won't be visible in the transcript
+      const formattedNotes = formatNotesForUpdate(currentNotes);
+      
+      // Send the notes update as a message to the existing chat session
+      await GeminiClient.sendMessageInSession(
+        chatSessionRef.current, 
+        `[SYSTEM] Notes have been updated. Please consider the following notes for future responses:\n\n${formattedNotes}`
+      );
+      
+      // Update our reference to the current notes
+      notesRef.current = { ...currentNotes };
+      
+      console.log('CallManager: Successfully updated Gemini context with new notes');
+    } catch (error) {
+      console.error('CallManager: Failed to update Gemini context with new notes:', error);
+    }
+  }, [markdown, checklist, questions]);
+
+  // Listen for direct changes to notes via hooks
+  useEffect(() => {
+    if (!activeMeeting || activeMeeting.status !== 'active' || !chatSessionRef.current) return;
+    
+    // Update if any of the notes have changed
+    updateChatSessionWithNotes();
+    
+  }, [markdown, checklist, questions, activeMeeting, updateChatSessionWithNotes]);
+  
+  // Also keep the localStorage listener as a backup
+  useEffect(() => {
+    // Only set up listeners if we're in an active call
+    if (!activeMeeting || activeMeeting.status !== 'active' || !chatSessionRef.current) return;
+    
+    console.log('CallManager: Setting up notes change listeners for active call');
+    
+    const handleStorageChange = (e) => {
+      // Check if the change is related to notes
+      if (e.key && (
+        e.key === 'notes-markdown' || 
+        e.key === 'notes-checklist' || 
+        e.key === 'notes-questions'
+      )) {
+        updateChatSessionWithNotes(true);
+      }
+    };
+    
+    // Listen for storage events (when localStorage changes)
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [activeMeeting, updateChatSessionWithNotes]);
+
+  // Helper function to format notes for a mid-call update
+  const formatNotesForUpdate = (notes) => {
+    let formattedNotes = "";
+    
+    // Add markdown notes if available
+    if (notes.markdown && notes.markdown.trim()) {
+      formattedNotes += "## Notes\n" + notes.markdown.trim() + "\n\n";
+    }
+    
+    // Add checklist if available
+    if (notes.checklist && notes.checklist.length > 0) {
+      formattedNotes += "## Checklist\n";
+      notes.checklist.forEach(item => {
+        formattedNotes += `- [${item.completed ? 'x' : ' '}] ${item.label}\n`;
+      });
+      formattedNotes += "\n";
+    }
+    
+    // Add questions if available
+    if (notes.questions && notes.questions.length > 0) {
+      formattedNotes += "## Key Questions\n";
+      notes.questions.forEach(question => {
+        formattedNotes += `- ${question.text}\n`;
+      });
+      formattedNotes += "\n";
+    }
+    
+    return formattedNotes || "No notes provided.";
+  };
+
+  const startCall = useCallback(async (callType: string, startMeeting: (type: string) => Promise<void>, user: any, details: CallDetails) => {
     if (!callType || !user) return;
     
     console.log('CallManager: Starting call process...');
@@ -202,10 +365,55 @@ export const useCallManager = () => {
       setConnectionTimedOut(false);
       setAutoReconnect(true);
       
-      // Initialize the stateful chat session for this call
-      console.log('CallManager: Initializing stateful Gemini chat session...');
-      chatSessionRef.current = GeminiClient.startSalesAnalysisChat();
-      console.log('CallManager: Chat session initialized.');
+      // Get current notes to include in the Gemini context
+      const notes = getCurrentNotes();
+      console.log('CallManager: Retrieved notes for Gemini context:', {
+        hasMarkdown: !!notes.markdown,
+        checklistItems: notes.checklist.length,
+        questionItems: notes.questions.length
+      });
+      
+      // Fetch user profile data
+      let userProfile: UserProfile = {};
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        if (profileData) {
+          userProfile.firstName = profileData.first_name;
+          userProfile.lastName = profileData.last_name;
+        }
+
+        const { data: businessData, error: businessError } = await supabase
+          .from('business_details')
+          .select('company_name, role, industry, company_size, business_description')
+          .eq('id', user.id)
+          .single();
+
+        if (businessError) throw businessError;
+        if (businessData) {
+          userProfile.companyName = businessData.company_name;
+          userProfile.role = businessData.role;
+          userProfile.industry = businessData.industry;
+          userProfile.companySize = businessData.company_size;
+          userProfile.businessDescription = businessData.business_description;
+        }
+      } catch (error) {
+        console.error("CallManager: Error fetching user profile:", error);
+        // Continue without profile data if it fails
+      }
+      
+      // Store initial notes state for comparison
+      notesRef.current = notes;
+      
+      // Initialize the stateful chat session for this call with notes
+      console.log('CallManager: Initializing stateful Gemini chat session with notes and profile...');
+      chatSessionRef.current = GeminiClient.startSalesAnalysisChat(details, notes, userProfile);
+      console.log('CallManager: Chat session initialized with notes and profile.');
       
       // Reset sentence tracking on new call
       lastSentenceRef.current = null;
@@ -215,33 +423,19 @@ export const useCallManager = () => {
       
       // Reset insights to defaults
       setInsights({
-        emotions: [
-          { emotion: "Interest", level: 75 },
-          { emotion: "Concern", level: 30 },
-          { emotion: "Enthusiasm", level: 45 },
-          { emotion: "Skepticism", level: 20 }
-        ],
-        painPoints: [
-          "Current solution is too complex to implement",
-          "Training the team takes too much time"
-        ],
-        objections: [
-          "Price seems higher than competitors",
-          "Concerned about implementation timeline"
-        ],
-        recommendations: [
-          "Demonstrate ROI calculation",
-          "Offer implementation support options"
-        ],
-        nextActions: [
-          "Schedule technical demo",
-          "Send case study on similar implementation"
-        ]
+        emotions: [],
+        painPoints: [],
+        objections: [],
+        buyingSignals: [],
+        recommendations: [],
+        closingTechniques: [],
+        nextActions: []
       });
-      setClientEmotion("Interest");
-      setClientInterest(75);
-      setCallStage("Discovery");
-      setAiCoachingSuggestion("Ask about their current workflow and pain points to better understand their needs.");
+      setClientEmotion("");
+      setClientInterest(0);
+      setClosingPotential(0);
+      setCallStage("");
+      setAiCoachingSuggestion("");
       
       console.log('CallManager: Starting meeting in database...');
       await startMeeting(callType);
@@ -416,6 +610,7 @@ export const useCallManager = () => {
     insights,
     clientEmotion,
     clientInterest,
+    closingPotential,
     callStage,
     aiCoachingSuggestion,
   };

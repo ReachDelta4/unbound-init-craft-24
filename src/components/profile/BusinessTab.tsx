@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from "react";
 import { User } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -16,6 +16,7 @@ interface BusinessDetailsFormValues {
   industry: string;
   companySize: string;
   website: string;
+  businessDescription: string;
 }
 
 interface AddressFormValues {
@@ -40,6 +41,7 @@ const BusinessTab: React.FC<BusinessTabProps> = ({ user }) => {
       industry: "",
       companySize: "",
       website: "",
+      businessDescription: "",
     },
   });
 
@@ -75,6 +77,7 @@ const BusinessTab: React.FC<BusinessTabProps> = ({ user }) => {
             industry: data.industry || "",
             companySize: data.company_size || "",
             website: data.website || "",
+            businessDescription: data.business_description || "",
           });
           
           addressForm.reset({
@@ -106,6 +109,7 @@ const BusinessTab: React.FC<BusinessTabProps> = ({ user }) => {
           industry: values.industry,
           company_size: values.companySize,
           website: values.website,
+          business_description: values.businessDescription,
           updated_at: new Date().toISOString(),
         });
       
@@ -217,6 +221,24 @@ const BusinessTab: React.FC<BusinessTabProps> = ({ user }) => {
                     <FormLabel>Company Website</FormLabel>
                     <FormControl>
                       <Input type="url" placeholder="https://company-website.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={businessForm.control}
+                name="businessDescription"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>What your business does</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe your business in detail..."
+                        className="resize-y min-h-[100px]"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

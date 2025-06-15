@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, desktopCapturer, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 if (process.platform === 'win32') {
@@ -13,6 +14,42 @@ if (process.platform === 'win32') {
 }
 
 let mainWindow = null;
+let sttServerProcess = null;
+
+// Function to start the STT server
+const startSTTServer = () => {
+  const sttBatchPath = path.join(__dirname, '../frontend/stt_backend/start_stt_server_optimized_realtime.bat');
+  
+  if (fs.existsSync(sttBatchPath)) {
+    console.log('Starting STT server...');
+    sttServerProcess = spawn('cmd.exe', ['/c', sttBatchPath], {
+      detached: false,
+      windowsHide: false,
+      // Set process group ID so we can kill the entire process tree
+      ...(process.platform !== 'win32' && { detached: true })
+    });
+    
+    // Don't let the parent process wait for this child to exit
+    if (process.platform !== 'win32') {
+      sttServerProcess.unref();
+    }
+    
+    sttServerProcess.stdout.on('data', (data) => {
+      console.log(`STT Server: ${data}`);
+    });
+    
+    sttServerProcess.stderr.on('data', (data) => {
+      console.error(`STT Server Error: ${data}`);
+    });
+    
+    sttServerProcess.on('close', (code) => {
+      console.log(`STT Server process exited with code ${code}`);
+      sttServerProcess = null;
+    });
+  } else {
+    console.error('STT batch file not found at:', sttBatchPath);
+  }
+};
 
 // These command line switches are needed for screen sharing to work properly
 app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
@@ -51,8 +88,13 @@ const createWindow = () => {
       // Enable media permissions
       enableWebSQL: false,
       autoplayPolicy: 'no-user-gesture-required',
+      // Disable developer tools
+      devTools: false
     },
   });
+
+  // Remove the menu bar
+  Menu.setApplicationMenu(null);
 
   // In production, load the bundled app
   if (app.isPackaged) {
@@ -60,7 +102,6 @@ const createWindow = () => {
   } else {
     // In development, load from the dev server
     mainWindow.loadURL('http://localhost:3000');
-    mainWindow.webContents.openDevTools();
   }
 
   // Handle window closed
@@ -81,9 +122,26 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+  
+  // Start the STT server
+  startSTTServer();
 
   // Setup IPC handlers for file operations
   setupIpcHandlers();
+
+  // Disable keyboard shortcuts for developer tools
+  app.on('web-contents-created', (event, contents) => {
+    contents.on('before-input-event', (event, input) => {
+      // Prevent F12, Ctrl+Shift+I, Cmd+Opt+I
+      const isDeveloperShortcut = 
+        (input.key === 'F12') || 
+        ((input.control || input.meta) && (input.shift || input.alt) && input.key.toLowerCase() === 'i');
+      
+      if (isDeveloperShortcut) {
+        event.preventDefault();
+      }
+    });
+  });
 
   app.on('activate', () => {
     // On macOS it's common to re-create a window when the dock icon is clicked
@@ -95,8 +153,36 @@ app.whenReady().then(async () => {
 
 // Quit when all windows are closed, except on macOS
 app.on('window-all-closed', () => {
+  // Kill STT server process if it's running
+  if (sttServerProcess) {
+    sttServerProcess.kill();
+    sttServerProcess = null;
+  }
+  
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+// Make sure to kill the STT server process when the app is about to quit
+app.on('before-quit', () => {
+  console.log('Application is about to quit, killing STT server...');
+  if (sttServerProcess) {
+    try {
+      // Force kill the process and any child processes
+      const isWindows = process.platform === 'win32';
+      if (isWindows) {
+        // On Windows, we need to use taskkill to ensure all child processes are terminated
+        spawn('taskkill', ['/pid', sttServerProcess.pid, '/f', '/t']);
+      } else {
+        // On Unix-like systems, negative PID kills the process group
+        process.kill(-sttServerProcess.pid);
+      }
+    } catch (error) {
+      console.error('Failed to kill STT server process:', error);
+    } finally {
+      sttServerProcess = null;
+    }
   }
 });
 

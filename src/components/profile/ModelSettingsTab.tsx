@@ -29,7 +29,7 @@ const defaultSettings: ModelSettings = {
 };
 
 const ModelSettingsTab: React.FC = () => {
-  const { modelSettings, updateModelSettings, isClientAvailable } = useGeminiChat();
+  const { modelSettings, updateModelSettings, reloadModelSettings, isClientAvailable } = useGeminiChat();
   const [settings, setSettings] = useState<ModelSettings>(defaultSettings);
   const [activeTab, setActiveTab] = useState("general");
   const [stopSequence, setStopSequence] = useState("");
@@ -40,8 +40,14 @@ const ModelSettingsTab: React.FC = () => {
   useEffect(() => {
     if (modelSettings) {
       setSettings(modelSettings);
+    } else {
+      // Try to reload settings if not available
+      const loadedSettings = reloadModelSettings();
+      if (loadedSettings) {
+        setSettings(loadedSettings);
+      }
     }
-  }, [modelSettings]);
+  }, [modelSettings, reloadModelSettings]);
 
   // Track changes to settings
   useEffect(() => {
@@ -64,6 +70,29 @@ const ModelSettingsTab: React.FC = () => {
   const handleResetSettings = () => {
     setSettings(defaultSettings);
     setIsChanged(true);
+  };
+
+  const handleTestModel = async () => {
+    try {
+      // First save the current settings
+      updateModelSettings(settings);
+      
+      // Create a simple test message
+      const testMessage = `Testing model: ${settings.model}`;
+      alert(`Testing model ${settings.model}...\nThis will take a moment.`);
+      
+      // Import the client directly for this test
+      const GeminiClient = (await import('@/integrations/gemini/GeminiClient')).default;
+      
+      // Send a test message
+      const response = await GeminiClient.sendStatelessMessage("Please respond with 'Hello from " + settings.model + "'");
+      
+      // Show the response
+      alert(`Response from model:\n${response}`);
+    } catch (error) {
+      console.error("Error testing model:", error);
+      alert(`Error testing model: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   const addStopSequence = () => {
@@ -154,15 +183,23 @@ const ModelSettingsTab: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash Preview 05-20</SelectItem>
-                    <SelectItem value="gemini-2.5-pro-exp">Gemini 2.5 Pro Experimental</SelectItem>
+                    <SelectItem value="gemini-2.5-pro-preview-03-25">Gemini 2.5 Pro Preview 03-25</SelectItem>
+                    
                     <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
-                    <SelectItem value="gemini-2.0-flash-001">Gemini 2.0 Flash 001 (Stable)</SelectItem>
-                    <SelectItem value="gemini-2.0-flash-exp">Gemini 2.0 Flash Experimental</SelectItem>
-                    <SelectItem value="gemini-2.0-flash-thinking-exp">Gemini 2.0 Flash Thinking Experimental</SelectItem>
-                    <SelectItem value="gemini-1.5-pro-002">Gemini 1.5 Pro 002</SelectItem>
-                    <SelectItem value="gemini-1.5-flash-002">Gemini 1.5 Flash 002</SelectItem>
+                    <SelectItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</SelectItem>
+                    
+                    <SelectItem value="gemini-1.5-pro-latest">Gemini 1.5 Pro (Latest)</SelectItem>
+                    <SelectItem value="gemini-1.5-flash-latest">Gemini 1.5 Flash (Latest)</SelectItem>
+                    <SelectItem value="gemini-1.5-flash-8b">Gemini 1.5 Flash 8B</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button 
+                  className="mt-2" 
+                  variant="secondary" 
+                  onClick={handleTestModel}
+                >
+                  Test Selected Model
+                </Button>
               </div>
 
               <div className="space-y-2">
@@ -475,64 +512,47 @@ const ModelSettingsTab: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Gemini 2.5 Flash Preview 05-20</h3>
+                <h3 className="text-lg font-semibold">Gemini 2.5 Series (Preview)</h3>
                 <p className="text-muted-foreground">
-                  Latest Flash model optimized for adaptive thinking and cost efficiency.
-                  Supports multimodal inputs with excellent balance of performance and speed.
+                  The latest generation of models, offering the best performance and capabilities. These are preview models and may have limitations.
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="font-medium">Input Token Limit</div>
-                  <div>1,048,576</div>
-                  <div className="font-medium">Output Token Limit</div>
-                  <div>8,192</div>
+                  <div className="font-medium">Gemini 2.5 Pro</div>
+                  <div>State-of-the-art model for complex reasoning and coding.</div>
+                  <div className="font-medium">Gemini 2.5 Flash</div>
+                  <div>Fast and cost-efficient model for most tasks.</div>
                   <div className="font-medium">Knowledge Cutoff</div>
                   <div>August 2024</div>
                 </div>
               </div>
 
               <div className="border-t pt-4 space-y-4">
-                <h3 className="text-lg font-semibold">Gemini 2.5 Pro Experimental</h3>
+                <h3 className="text-lg font-semibold">Gemini 2.0 Series</h3>
                 <p className="text-muted-foreground">
-                  Google's most advanced multimodal model with enhanced reasoning capabilities.
-                  Supports images, audio, video, and text inputs with a 1M+ token context window.
+                  Next-generation models with superior speed and a large context window.
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="font-medium">Input Token Limit</div>
-                  <div>1,048,576</div>
-                  <div className="font-medium">Output Token Limit</div>
-                  <div>8,192</div>
+                  <div className="font-medium">Gemini 2.0 Flash</div>
+                  <div>Fast, efficient model for real-time applications.</div>
+                  <div className="font-medium">Gemini 2.0 Flash Lite</div>
+                  <div>A more cost-efficient and low-latency version of Flash.</div>
                   <div className="font-medium">Knowledge Cutoff</div>
                   <div>August 2024</div>
                 </div>
               </div>
 
               <div className="border-t pt-4 space-y-4">
-                <h3 className="text-lg font-semibold">Gemini 2.0 Flash</h3>
+                <h3 className="text-lg font-semibold">Gemini 1.5 Series</h3>
                 <p className="text-muted-foreground">
-                  Fast and efficient model optimized for quick responses while maintaining high quality.
-                  Ideal for real-time applications with lower latency requirements.
+                  A powerful and versatile series of models with a large context window and strong multimodal capabilities.
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="font-medium">Input Token Limit</div>
-                  <div>1,048,576</div>
-                  <div className="font-medium">Output Token Limit</div>
-                  <div>8,192</div>
-                  <div className="font-medium">Knowledge Cutoff</div>
-                  <div>August 2024</div>
-                </div>
-              </div>
-
-              <div className="border-t pt-4 space-y-4">
-                <h3 className="text-lg font-semibold">Gemini 1.5 Pro/Flash</h3>
-                <p className="text-muted-foreground">
-                  Previous generation models with strong multimodal capabilities.
-                  Still powerful but may lack some of the latest improvements in the 2.0 series.
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="font-medium">Input Token Limit</div>
-                  <div>1,048,576</div>
-                  <div className="font-medium">Output Token Limit</div>
-                  <div>8,192</div>
+                  <div className="font-medium">Gemini 1.5 Pro</div>
+                  <div>Best for complex reasoning tasks.</div>
+                  <div className="font-medium">Gemini 1.5 Flash</div>
+                  <div>Balanced for performance and speed.</div>
+                  <div className="font-medium">Gemini 1.5 Flash 8B</div>
+                  <div>Efficient model for high-volume tasks.</div>
                   <div className="font-medium">Knowledge Cutoff</div>
                   <div>February 2024</div>
                 </div>
