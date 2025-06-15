@@ -88,13 +88,13 @@ const createWindow = () => {
       // Enable media permissions
       enableWebSQL: false,
       autoplayPolicy: 'no-user-gesture-required',
-      // Disable developer tools
-      devTools: false
+      // Enable developer tools
+      devTools: true
     },
   });
 
-  // Remove the menu bar
-  Menu.setApplicationMenu(null);
+  // Keep the default menu for development
+  // Menu.setApplicationMenu(null);
 
   // In production, load the bundled app
   if (app.isPackaged) {
@@ -129,18 +129,9 @@ app.whenReady().then(async () => {
   // Setup IPC handlers for file operations
   setupIpcHandlers();
 
-  // Disable keyboard shortcuts for developer tools
+  // Allow keyboard shortcuts for developer tools
   app.on('web-contents-created', (event, contents) => {
-    contents.on('before-input-event', (event, input) => {
-      // Prevent F12, Ctrl+Shift+I, Cmd+Opt+I
-      const isDeveloperShortcut = 
-        (input.key === 'F12') || 
-        ((input.control || input.meta) && (input.shift || input.alt) && input.key.toLowerCase() === 'i');
-      
-      if (isDeveloperShortcut) {
-        event.preventDefault();
-      }
-    });
+    // Developer shortcuts are now enabled
   });
 
   app.on('activate', () => {
