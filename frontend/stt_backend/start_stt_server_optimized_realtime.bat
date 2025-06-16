@@ -8,7 +8,7 @@ set MKL_NUM_THREADS=2
 set NUMEXPR_MAX_THREADS=2
 
 stt-server ^
-  --model tiny.en ^
+  --model tiny ^
   --language en ^
   --compute_type int8 ^
   --device cpu ^
