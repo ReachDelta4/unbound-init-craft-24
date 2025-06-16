@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -29,16 +30,25 @@ import { Button } from "@/components/ui/button";
 type TabType = "personal" | "business" | "documents" | "meetings" | "model-settings";
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>("personal");
 
-  // Redirect to auth page if not logged in
+  // Only redirect to auth page if not loading and definitely no user
   React.useEffect(() => {
-    if (!user) {
+    if (!isLoading && !user) {
       navigate("/auth");
     }
-  }, [user, navigate]);
+  }, [user, isLoading, navigate]);
+
+  // Show loading or return null while checking auth state
+  if (isLoading) {
+    return (
+      <div className="h-screen w-full bg-background text-foreground flex items-center justify-center">
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   if (!user) {
     return null;
