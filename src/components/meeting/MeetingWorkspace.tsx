@@ -116,7 +116,7 @@ const MeetingWorkspace = ({
       const testMessage = "Hello, this is a test message from the MeetingWorkspace component. Please respond with a short confirmation.";
       console.log('MeetingWorkspace: Sending test message to Gemini:', testMessage);
       
-      const response = await GeminiClient.sendMessage(testMessage);
+      const response = await GeminiClient.sendStatelessMessage(testMessage);
       console.log('MeetingWorkspace: Received response from Gemini:', response);
       
       alert(`Gemini API Test Result: ${response}`);
@@ -236,7 +236,7 @@ const MeetingWorkspace = ({
       </div>
       
       {/* Floating Notes Widget */}
-      <FloatingNotesWidget />
+      <FloatingNotesWidget isCallActive={isCallActive} />
     </div>
   );
 };

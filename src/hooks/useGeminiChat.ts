@@ -1,6 +1,19 @@
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import geminiClientInstance from '../integrations/gemini/GeminiClient';
-import { ModelSettings } from "@/types";
+
+export interface ModelSettings {
+  model: string;
+  temperature: number;
+  thinkingMode: "off" | "auto" | "on";
+  topP: number;
+  topK: number;
+  maxOutputTokens: number;
+  stopSequences: string[];
+  safetySettings: {
+    [key: string]: string;
+  };
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'model';
@@ -89,4 +102,4 @@ export function useGeminiChat() {
     modelSettings,
     updateModelSettings
   };
-} 
+}

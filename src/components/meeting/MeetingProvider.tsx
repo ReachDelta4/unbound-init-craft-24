@@ -86,7 +86,6 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
   
   const callManager = useCallManager();
 
-  // Generate summary from insights
   const generateSummary = () => {
     const currentInsights = callManager.insights;
     
@@ -144,9 +143,9 @@ export const MeetingProvider = ({ children }: MeetingProviderProps) => {
     aiCoachingSuggestion: callManager.aiCoachingSuggestion,
     
     // Gemini response
-    lastGeminiResponse: callManager.lastGeminiResponse,
+    lastGeminiResponse: callManager.lastGeminiResponse || null,
 
-    // Call manager - explicitly list all properties instead of using spread
+    // Call manager - explicitly list all properties
     isScreenSharing: callManager.isScreenSharing,
     webRTCStream: callManager.webRTCStream,
     webRTCError: callManager.webRTCError,

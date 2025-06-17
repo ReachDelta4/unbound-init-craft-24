@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { X, MessageSquare, SendHorizontal, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,7 +90,7 @@ const FloatingGeminiChat = () => {
           message.role === "user" ? "bg-primary/10 ml-8" : "bg-muted mr-8"
         }`}
       >
-        <p className="text-sm">{message.content}</p>
+        <p className="text-sm">{message.parts[0]?.text || ""}</p>
       </div>
     ));
   };
@@ -191,4 +192,4 @@ const FloatingGeminiChat = () => {
   );
 };
 
-export default FloatingGeminiChat; 
+export default FloatingGeminiChat;

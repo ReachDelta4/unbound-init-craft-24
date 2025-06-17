@@ -1,6 +1,6 @@
+
 import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import { useCallManager } from '@/hooks/useCallManager';
-import { useSentenceProcessor } from '@/hooks/useSentenceProcessor';
 import { TranscriptionWSStatus } from '@/hooks/useTranscriptionWebSocket';
 
 interface MeetingContextType {
@@ -9,7 +9,6 @@ interface MeetingContextType {
   isScreenSharing: boolean;
   startCall: () => void;
   endCall: () => void;
-  toggleScreenShare: () => void;
   
   // Transcription
   liveTranscript: string;
@@ -44,56 +43,30 @@ export const useMeeting = (): MeetingContextType => {
 };
 
 const MeetingProviderComponent: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const {
-    isCallActive,
-    isScreenSharing,
-    startCall,
-    endCall,
-    toggleScreenShare,
-    liveTranscript,
-    fullTranscript,
-    transcriptionStatus,
-    insights,
-    clientEmotion,
-    clientInterest,
-    callStage,
-    aiCoachingSuggestion,
-    lastGeminiResponse,
-  } = useCallManager();
+  const callManager = useCallManager();
 
   // Create the context value object with all properties explicitly listed
-  // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
-    isCallActive,
-    isScreenSharing,
-    startCall,
-    endCall,
-    toggleScreenShare,
-    liveTranscript,
-    fullTranscript,
-    transcriptionStatus,
-    insights,
-    clientEmotion,
-    clientInterest,
-    callStage,
-    aiCoachingSuggestion,
-    lastGeminiResponse,
-  }), [
-    isCallActive,
-    isScreenSharing,
-    startCall,
-    endCall,
-    toggleScreenShare,
-    liveTranscript,
-    fullTranscript,
-    transcriptionStatus,
-    insights,
-    clientEmotion,
-    clientInterest,
-    callStage,
-    aiCoachingSuggestion,
-    lastGeminiResponse,
-  ]);
+    isCallActive: callManager.isCallActive || false,
+    isScreenSharing: callManager.isScreenSharing || false,
+    startCall: () => callManager.startCall?.('video', async () => {}, null),
+    endCall: callManager.endCall || (() => {}),
+    liveTranscript: callManager.liveTranscript || '',
+    fullTranscript: callManager.fullTranscript || '',
+    transcriptionStatus: callManager.wsStatus as TranscriptionWSStatus || 'disconnected',
+    insights: callManager.insights || {
+      emotions: [],
+      painPoints: [],
+      objections: [],
+      recommendations: [],
+      nextActions: []
+    },
+    clientEmotion: callManager.clientEmotion || 'neutral',
+    clientInterest: callManager.clientInterest || 50,
+    callStage: callManager.callStage || 'Discovery',
+    aiCoachingSuggestion: callManager.aiCoachingSuggestion || '',
+    lastGeminiResponse: callManager.lastGeminiResponse || null,
+  }), [callManager]);
 
   return (
     <MeetingContext.Provider value={contextValue}>
@@ -102,5 +75,4 @@ const MeetingProviderComponent: React.FC<{ children: ReactNode }> = ({ children 
   );
 };
 
-// Export a memoized version of the provider to prevent unnecessary re-renders
-export const MeetingProvider = React.memo(MeetingProviderComponent); 
+export const MeetingProvider = React.memo(MeetingProviderComponent);
